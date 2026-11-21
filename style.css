@@ -63,6 +63,21 @@ label { display: block; margin-bottom: 8px; }
 .results .note { display: block; font-size: 0.8em; }
 .picked a { color: #f4c542; }
 
+/* Dual wield: a little gap between the main-hand and off-hand boxes, and the buttons */
+.picker + .picker { margin-top: 8px; }
+.dw-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.dw-tools[hidden] { display: none; }
+.dw-tools button {
+  background: #14161a;
+  color: inherit;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.dw-tools button:hover { border-color: #f4c542; }
+
 /* WoW item quality colors */
 .q-Poor { color: #9d9d9d; }
 .q-Common { color: #ffffff; }

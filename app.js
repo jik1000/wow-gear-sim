@@ -134,20 +134,16 @@ function loadBaseWeights() {
   const dwKey = $("class-select").value + "/" + $("spec-select").value;
   $("dw-row").hidden = !(dwKey in DUAL_WIELD_SPECS);
   $("dual-wield").checked = DUAL_WIELD_SPECS[dwKey] === true;
-  refillSpecDependent();
-  update();
+  refreshItems();
 }
 
-// Some boxes depend on your spec or weapon setup, not just the item: Feral AP,
-// school spell damage and weapon DPS. Refill them for items picked in the search.
-function refillSpecDependent() {
-  for (const side of ["old", "new"]) {
-    const item = picked[side];
-    if (!item) continue;
-    $(side + STATS.indexOf("Attack Power")).value = attackPowerFor(item);
-    $(side + STATS.indexOf("Spell Damage")).value = spellDamageFor(item);
-    $(side + STATS.indexOf("Weapon DPS")).value = weaponDpsFor(item, side);
-  }
+// Some boxes depend on your spec or weapon setup, not just the item (Feral AP,
+// school spell damage, weapon DPS), so refill both columns from the picked items.
+function refreshItems() {
+  applyDualWieldLayout();
+  fillColumn("old");
+  fillColumn("new");
+  update();
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +160,10 @@ const ITEM_STAT = {
   "Stamina": "stamina", "Spirit": "spirit", "Armor": "armor",
 };
 
-// The item picked for each column ("old" = equipped, "new" = new item).
-const picked = { old: null, new: null };
+// The items picked for each column ("old" = equipped, "new" = new item).
+// "main" is the normal search box; "off" is the off-hand box shown when dual wielding.
+const picked = { old: { main: null, off: null }, new: { main: null, off: null } };
+const picker = (side, slot) => $(`pick-${side}-${slot}`);
 
 // "+N Attack Power in Cat, Bear..." only helps Feral druids, so add it just for them.
 function attackPowerFor(item) {
@@ -189,51 +187,94 @@ function spellDamageFor(item) {
 const OFF_HAND_SHARE = 0.5;
 const isDualWielding = () => !$("dw-row").hidden && $("dual-wield").checked;
 
-function weaponDpsFor(item, side) {
-  const form = $("search-" + side);
-  const handLabel = form.querySelector(".hand");
-  const note = form.querySelector(".weapon-note");
+// How much of an item's weapon DPS counts, and a note explaining why.
+//   hand: "main" or "off" (which search box the item is in)
+//   twoHanderInMain: true if the main hand already holds a two-handed weapon
+function weaponDpsFor(item, hand, twoHanderInMain) {
   const w = item.stats.weapon;
-  handLabel.hidden = true;
-  note.textContent = "";
-  if (!w?.dps) return 0;
+  if (!w?.dps) return { dps: 0, note: "" };
 
   const ranged = w.slot === "Ranged" || w.slot === "Thrown";
   if ($("class-select").value === "Hunter") {
-    if (!ranged) note.textContent = "Melee weapon: Hunters' damage comes from their ranged weapon, so its DPS isn't counted.";
-    return ranged ? w.dps : 0;
+    return ranged ? { dps: w.dps, note: "" }
+      : { dps: 0, note: "Melee weapon: Hunters' damage comes from their ranged weapon, so its DPS isn't counted." };
   }
-  if (ranged) {
-    note.textContent = "Ranged weapon: only Hunters get damage from this, so its DPS isn't counted.";
-    return 0;
+  if (ranged) return { dps: 0, note: "Ranged weapon: only Hunters get damage from this, so its DPS isn't counted." };
+
+  if (hand === "main") {
+    if (w.slot === "Off Hand") return { dps: 0, note: "This weapon only fits in the off hand, so it isn't counted here." };
+    if (w.slot === "Two-Hand" && isDualWielding())
+      return { dps: w.dps, note: "Two-handed: leave the off hand empty to compare it with a dual-wield pair." };
+    return { dps: w.dps, note: "" };
   }
 
-  // Which hand? Off Hand weapons always go in the off hand. One-Hand weapons
-  // can go in either, so when you dual wield, you choose with the dropdown.
-  let hand = "main";
-  if (w.slot === "Off Hand") hand = "off";
-  if (w.slot === "One-Hand" && isDualWielding()) {
-    handLabel.hidden = false;
-    hand = handLabel.querySelector("select").value;
-  }
-  if (hand === "off") {
-    note.textContent = `Off hand: counts half of its ${w.dps} DPS.`;
-    return Math.round(w.dps * OFF_HAND_SHARE * 100) / 100;
-  }
-  return w.dps;
+  // Off hand: only shown when dual wielding.
+  if (twoHanderInMain) return { dps: 0, note: "Your main hand is two-handed, so the off hand isn't used." };
+  if (w.slot === "Two-Hand") return { dps: 0, note: "Two-handed weapons can't go in the off hand." };
+  if (w.slot === "Main Hand") return { dps: 0, note: "This weapon only fits in the main hand, so it isn't counted here." };
+  return { dps: Math.round(w.dps * OFF_HAND_SHARE * 100) / 100, note: `Off hand: counts half of its ${w.dps} DPS.` };
 }
 
-// Put an item's stats into one column of the compare table.
-function fillColumn(side, item) {
-  picked[side] = item;
+// Fill one column of the compare table from its picked item(s).
+// With dual wield on, the main-hand and off-hand weapons are added together.
+function fillColumn(side) {
+  const main = picked[side].main;
+  const off = isDualWielding() ? picked[side].off : null;
+  if (!main && !off) return; // nothing picked: keep whatever was typed by hand
+
+  const twoHanderInMain = main?.stats.weapon?.slot === "Two-Hand";
+  const weapons = {};
+  for (const [hand, item] of [["main", main], ["off", off]]) {
+    weapons[hand] = item ? weaponDpsFor(item, hand, twoHanderInMain) : { dps: 0, note: "" };
+    picker(side, hand).querySelector(".weapon-note").textContent = weapons[hand].note;
+  }
+
+  // An off-hand weapon that can't be used (e.g. next to a two-hander) adds no stats either.
+  const offUsable = off && !(twoHanderInMain || ["Two-Hand", "Main Hand"].includes(off.stats.weapon?.slot));
+  const items = [main, offUsable ? off : null].filter(Boolean);
+
   STATS.forEach((stat, i) => {
-    $(side + i).value =
-      stat === "Attack Power" ? attackPowerFor(item)
-      : stat === "Spell Damage" ? spellDamageFor(item)
-      : stat === "Weapon DPS" ? weaponDpsFor(item, side) // 0 for items that aren't weapons
-      : item.stats[ITEM_STAT[stat]];
+    let value;
+    if (stat === "Weapon DPS") value = weapons.main.dps + weapons.off.dps;
+    else {
+      value = items.reduce((sum, item) =>
+        sum + (stat === "Attack Power" ? attackPowerFor(item)
+             : stat === "Spell Damage" ? spellDamageFor(item)
+             : item.stats[ITEM_STAT[stat]]), 0);
+    }
+    $(side + i).value = Math.round(value * 100) / 100;
   });
-  update();
+}
+
+// When dual wield is on, show the off-hand boxes and the swap/copy buttons,
+// and rename the first box to "main hand".
+const SLOT_LABELS = {
+  old: { single: "Find equipped item", main: "Equipped main hand" },
+  new: { single: "Find new item", main: "New main hand" },
+};
+function applyDualWieldLayout() {
+  const dw = isDualWielding();
+  for (const side of ["old", "new"]) {
+    picker(side, "off").hidden = !dw;
+    picker(side, "main").closest(".item-search").querySelector(".dw-tools").hidden = !dw;
+    picker(side, "main").querySelector(".slot-label").textContent = dw ? SLOT_LABELS[side].main : SLOT_LABELS[side].single;
+    if (!dw) picker(side, "off").querySelector(".weapon-note").textContent = "";
+  }
+}
+
+// Show "Using: <item>" (with a Wowhead link) under a search box, or clear it.
+function showPicked(side, slot) {
+  const note = picker(side, slot).querySelector(".picked");
+  const item = picked[side][slot];
+  // Keep the search text in step with the item (matters after Swap or Copy).
+  picker(side, slot).querySelector("input").value = item ? item.name : "";
+  note.textContent = item ? "Using: " : "";
+  if (!item) return;
+  const link = document.createElement("a");
+  link.href = item.link;
+  link.target = "_blank";
+  link.textContent = item.name;
+  note.append(link);
 }
 
 // A short summary of the non-zero stats, shown under each search result.
@@ -257,9 +298,9 @@ function setNote(form, text) {
   form.querySelector(".picked").textContent = text;
 }
 
-// Run a search for one of the two forms.
-async function search(side) {
-  const form = $("search-" + side);
+// Run a search in one search box (side = "old"/"new", slot = "main"/"off").
+async function search(side, slot) {
+  const form = picker(side, slot);
   const list = form.querySelector(".results");
   const query = form.querySelector("input").value.trim();
   if (!query) return;
@@ -291,16 +332,11 @@ async function search(side) {
       stats.textContent = summary(item.stats);
       button.append(name, stats);
       button.addEventListener("click", () => {
-        fillColumn(side, item);
+        picked[side][slot] = item;
         list.innerHTML = "";
-        // Show which item is in use, with a link to its Wowhead page.
-        const note = form.querySelector(".picked");
-        note.textContent = "Using: ";
-        const link = document.createElement("a");
-        link.href = item.link;
-        link.target = "_blank";
-        link.textContent = item.name;
-        note.append(link);
+        showPicked(side, slot); // "Using: <item>" with a Wowhead link
+        fillColumn(side);
+        update();
       });
       const li = document.createElement("li");
       li.append(button);
@@ -313,8 +349,32 @@ async function search(side) {
 
 // Pressing Enter in a search box submits its form: run the search instead of reloading.
 for (const side of ["old", "new"]) {
-  $("search-" + side).addEventListener("submit", (e) => { e.preventDefault(); search(side); });
+  for (const slot of ["main", "off"]) {
+    picker(side, slot).addEventListener("submit", (e) => { e.preventDefault(); search(side, slot); });
+  }
 }
+
+// "⇄ Swap hands": the main-hand weapon goes to the off hand and the other way round.
+for (const side of ["old", "new"]) {
+  $("swap-" + side).addEventListener("click", () => {
+    const p = picked[side];
+    [p.main, p.off] = [p.off, p.main];
+    showPicked(side, "main");
+    showPicked(side, "off");
+    refreshItems();
+  });
+}
+
+// "Copy equipped weapons": start the New column from your current pair, so you
+// can change just one weapon (or swap hands) and see the difference.
+$("copy-old").addEventListener("click", () => {
+  if (!picked.old.main && !picked.old.off) return; // nothing equipped picked yet
+  picked.new.main = picked.old.main;
+  picked.new.off = picked.old.off;
+  showPicked("new", "main");
+  showPicked("new", "off");
+  refreshItems();
+});
 
 // Work out every weight, show how, and compute the result.
 function update() {
@@ -415,11 +475,7 @@ $("class-select").addEventListener("change", fillSpecs);
 $("spec-select").addEventListener("change", loadBaseWeights);
 // Re-calculate on every keystroke in a box (dropdowns are handled above).
 document.addEventListener("input", (e) => { if (e.target.tagName === "INPUT") update(); });
-// The dual-wield checkbox and the main/off hand choice change which weapon DPS counts.
-$("dual-wield").addEventListener("change", () => { refillSpecDependent(); update(); });
-for (const side of ["old", "new"]) {
-  $("search-" + side).querySelector(".hand select")
-    .addEventListener("change", () => { refillSpecDependent(); update(); });
-}
+// Ticking "I dual wield" shows or hides the off-hand boxes and recounts both columns.
+$("dual-wield").addEventListener("change", refreshItems);
 
 fillSpecs(); // start up the page

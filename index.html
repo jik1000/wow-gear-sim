@@ -60,27 +60,48 @@
     <h2>4. Compare two items</h2>
     <!-- Search Wowhead (WoW Forever) for an item, click a result, and its
          stats fill that column below. You can still type stats by hand. -->
+    <!-- Each column has one search box, or two (main hand + off hand) when you
+         tick "I dual wield". Both weapons in a column are added together. -->
     <div class="search-row">
-      <form class="item-search" id="search-old">
-        <label>Find equipped item
-          <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
-        <ul class="results"></ul>
-        <p class="picked note"></p>
-        <!-- Only shown for one-handed weapons when you dual wield -->
-        <label class="hand" hidden>This weapon goes in my
-          <select><option value="main">main hand</option><option value="off">off hand (half DPS)</option></select></label>
-        <p class="weapon-note note"></p>
-      </form>
-      <form class="item-search" id="search-new">
-        <label>Find new item
-          <input type="search" placeholder="e.g. Golem War Cloak" autocomplete="off"></label>
-        <ul class="results"></ul>
-        <p class="picked note"></p>
-        <!-- Only shown for one-handed weapons when you dual wield -->
-        <label class="hand" hidden>This weapon goes in my
-          <select><option value="main">main hand</option><option value="off">off hand (half DPS)</option></select></label>
-        <p class="weapon-note note"></p>
-      </form>
+      <div class="item-search">
+        <form class="picker" id="pick-old-main">
+          <label><span class="slot-label">Find equipped item</span>
+            <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
+          <ul class="results"></ul>
+          <p class="picked note"></p>
+          <p class="weapon-note note"></p>
+        </form>
+        <form class="picker" id="pick-old-off" hidden>
+          <label><span class="slot-label">Equipped off hand</span>
+            <input type="search" placeholder="e.g. Dal'Rend's Tribal Guardian" autocomplete="off"></label>
+          <ul class="results"></ul>
+          <p class="picked note"></p>
+          <p class="weapon-note note"></p>
+        </form>
+        <div class="dw-tools" hidden>
+          <button type="button" id="swap-old">⇄ Swap hands</button>
+        </div>
+      </div>
+      <div class="item-search">
+        <form class="picker" id="pick-new-main">
+          <label><span class="slot-label">Find new item</span>
+            <input type="search" placeholder="e.g. Golem War Cloak" autocomplete="off"></label>
+          <ul class="results"></ul>
+          <p class="picked note"></p>
+          <p class="weapon-note note"></p>
+        </form>
+        <form class="picker" id="pick-new-off" hidden>
+          <label><span class="slot-label">New off hand</span>
+            <input type="search" placeholder="e.g. Felstriker" autocomplete="off"></label>
+          <ul class="results"></ul>
+          <p class="picked note"></p>
+          <p class="weapon-note note"></p>
+        </form>
+        <div class="dw-tools" hidden>
+          <button type="button" id="swap-new">⇄ Swap hands</button>
+          <button type="button" id="copy-old">Copy equipped weapons</button>
+        </div>
+      </div>
     </div>
     <table id="compare">
       <thead>
