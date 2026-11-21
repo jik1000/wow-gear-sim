@@ -30,34 +30,53 @@
 //   agiPerCrit: Agility needed for +1% crit (0 = Agility gives no crit)
 //   intPerCrit: Intellect needed for +1% spell crit (0 = not used)
 //   weapon:     true if the weapon's own damage (Weapon DPS) matters for this spec
+//   critBonus:  extra damage a crit does, in % (100 = double damage). Talents change it.
+//   critWhy:    where the critBonus number comes from (shown on the page)
 // Healer and tank specs are left out because this tool measures damage.
 const PHYS = (strAP, agiAP, agiPerCrit, weapon = true) =>
-  ({ kind: "physical", strAP, agiAP, agiPerCrit, intPerCrit: 0, weapon });
+  ({ kind: "physical", strAP, agiAP, agiPerCrit, intPerCrit: 0, weapon,
+     critBonus: 100, critWhy: "physical crits do double damage" });
+// Change a spec's crit bonus because of a talent, e.g. talent(PHYS(...), 120, "Impale").
+// WoW Forever talent numbers from community guides (beta-era; edit on the page if they change):
+//   Impale +20% (Arms), Lethality +20% (Rogue), Predatory Strikes +20% (Feral),
+//   Ice Shards +20% (Frost), Ignite +40% of the crit as a burn (Fire),
+//   Shadowform doubles Shadow crit bonus (Shadow Priest)
+//   https://maxroll.gg/wow-forever/news/wow-forever-class-deep-dives-whats-changing-for-all-nine-classes
+//   https://www.icy-veins.com/wow-forever/mage-talent-calculator
+//   https://foreverdb.net/class/Warrior/talents
+const talent = (s, critBonus, critWhy) => ({ ...s, critBonus, critWhy });
 // Only Paladin (54) and Warlock (60) are named in the source; 57 is a middle guess for the others.
 //   schools:    the spell schools a caster spec mostly casts. Items with
 //               "damage done by Fire spells" only count for specs that cast Fire.
 const CASTER = (intPerCrit, schools) =>
-  ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false, schools });
+  ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false, schools,
+     critBonus: 50, critWhy: "spell crits do +50% damage" });
 
 const SPECS = {
   // Feral: unlike Classic, WoW Forever's Cat and Bear form DO use the weapon's DPS
   // (swing speed is fixed by the form, so only the weapon's DPS matters).
   // Source: https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority
-  Druid:   { Feral: PHYS(2, 1, 20), Balance: CASTER(57, ["arcane", "nature"]) },
+  Druid:   { Feral: talent(PHYS(2, 1, 20), 120, "100% + 20% from Predatory Strikes"),
+             Balance: CASTER(57, ["arcane", "nature"]) },
   Hunter:  { "Beast Mastery": PHYS(0, 2, 53), Marksmanship: PHYS(0, 2, 53), Survival: PHYS(0, 2, 53) },
-  Mage:    { Arcane: CASTER(57, ["arcane"]), Fire: CASTER(57, ["fire"]), Frost: CASTER(57, ["frost"]) },
+  Mage:    { Arcane: CASTER(57, ["arcane"]),
+             Fire: talent(CASTER(57, ["fire"]), 90, "50% + 40% from Ignite's burn"),
+             Frost: talent(CASTER(57, ["frost"]), 70, "50% + 20% from Ice Shards") },
   Paladin: { Retribution: PHYS(2, 0, 20) },
-  Priest:  { Shadow: CASTER(57, ["shadow"]) },
-  Rogue:   { Assassination: PHYS(1, 1, 29), Combat: PHYS(1, 1, 29), Subtlety: PHYS(1, 1, 29) },
+  Priest:  { Shadow: talent(CASTER(57, ["shadow"]), 100, "Shadowform doubles the 50%") },
+  Rogue:   { Assassination: talent(PHYS(1, 1, 29), 120, "100% + 20% from Lethality"),
+             Combat: PHYS(1, 1, 29), Subtlety: PHYS(1, 1, 29) },
   Shaman:  { Elemental: CASTER(57, ["nature", "fire"]), Enhancement: PHYS(2, 0, 20) },
   Warlock: { Affliction: CASTER(60, ["shadow"]), Demonology: CASTER(60, ["shadow"]),
              Destruction: CASTER(60, ["shadow", "fire"]) },
-  Warrior: { Arms: PHYS(2, 0, 20), Fury: PHYS(2, 0, 20) },
+  Warrior: { Arms: talent(PHYS(2, 0, 20), 120, "100% + 20% from Impale"), Fury: PHYS(2, 0, 20) },
 };
 
 // Starting values for the base weights (% DPS per +1%). You can edit them on the page.
-//   Crit: physical crits add +100% damage, so +1% crit is about +1% DPS.
-//         Spell crits add +50%, so about +0.5%.
+//   Crit: calculated, not a base weight. A crit adds "critBonus" extra damage
+//         (100% physical, 50% spells, more with talents). +1% crit gives
+//         bonus / (1 + bonus x your crit) more DPS, e.g. 1.0 / (1 + 1.0 x 0.25) = 0.8%
+//         at 25% crit: the more crit you have, the less each extra 1% adds.
 //   Hit:  vs a boss you miss 8% (melee) or 17% (spells). Each 1% hit removes a
 //         miss, about 1 / 0.92 = 1.1% (melee) or 1 / 0.83 = 1.2% (spells) more damage.
 //         This only holds until you reach the hit cap.
@@ -65,8 +84,8 @@ const SPECS = {
 //   Haste: +1% attack/cast speed is about +1% DPS.
 //   Spell Damage: ESTIMATE, because it depends on your spells and your gear.
 const BASE = {
-  physical: { crit: 1.0, hit: 1.1, haste: 1.0, spell: 0 },
-  caster:   { crit: 0.5, hit: 1.2, haste: 1.0, spell: 0.08 },
+  physical: { hit: 1.1, haste: 1.0, spell: 0 },
+  caster:   { hit: 1.2, haste: 1.0, spell: 0.08 },
 };
 
 // Default caps (editable on the page).
@@ -119,7 +138,7 @@ function fillSpecs() {
 // Put the default base weights for this kind of spec into the boxes.
 function loadBaseWeights() {
   const b = BASE[spec().kind];
-  $("b-crit").value = b.crit;
+  $("crit-bonus").value = spec().critBonus;
   $("b-hit").value = b.hit;
   $("b-haste").value = b.haste;
   $("b-spell").value = b.spell;
@@ -387,7 +406,13 @@ $("copy-old").addEventListener("click", () => {
 // Work out every weight, show how, and compute the result.
 function update() {
   const s = spec();
-  const crit = num("b-crit"), hit = num("b-hit"), haste = num("b-haste"), spell = num("b-spell");
+  const hit = num("b-hit"), haste = num("b-haste"), spell = num("b-spell");
+
+  // Crit weight: bonus / (1 + bonus x current crit), both as fractions, then x 100 for %.
+  // (Talents that raise crit damage make crit worth more; having lots of crit already
+  // makes each extra 1% worth a bit less.)
+  const critBonus = num("crit-bonus") / 100, curCrit = num("cur-crit") / 100;
+  const crit = critBonus / (1 + critBonus * curCrit);
 
   // Attack Power: 14 AP = 1 DPS. As a % of your DPS, that's (1/14) / yourDPS x 100.
   const sheetDps = num("sheet-dps");
@@ -441,6 +466,9 @@ function update() {
     "Expertise %":  !physical ? "not used by casters"
                   : curExp < expCap ? `same as hit until the ${expCap}% dodge cap (you have ${curExp}%)`
                   : "you're at the cap: no more value",
+    "Crit %":       `crits do +${num("crit-bonus")}% damage` +
+                    (num("crit-bonus") === s.critBonus ? ` (${s.critWhy})` : " (your value)") +
+                    `; you have ${num("cur-crit")}% crit`,
     "Spell Penetration": "shown, not in the estimate yet",
     "Stamina":      "no DPS (shown for info)",
     "Spirit":       "no DPS (shown for info)",

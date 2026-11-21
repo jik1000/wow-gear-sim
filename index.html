@@ -31,6 +31,8 @@
       panel; Hunters use the Ranged damage, Feral checks it in Cat Form)
       <input id="sheet-dps" type="number" value="100"></label>
     <!-- Hit and Expertise stop helping at a cap, so we need to know where you are now -->
+    <label>Your crit % now (character sheet; casters use spell crit)
+      <input id="cur-crit" type="number" step="any" value="0"></label>
     <label>Your hit % now (character sheet, wearing your equipped item)
       <input id="cur-hit" type="number" step="any" value="0"></label>
     <label id="cur-exp-row">Your expertise % now (wearing your equipped item)
@@ -41,7 +43,9 @@
 
   <section>
     <h2>2. Base weights (editable)</h2>
-    <label>Crit % <input id="b-crit" type="number" step="0.1"></label>
+    <!-- Crit's weight is calculated from this and "Your crit % now" -->
+    <label>Crit damage bonus % (how much extra a crit does, with talents)
+      <input id="crit-bonus" type="number" step="any"></label>
     <label>Hit % (until hit cap) <input id="b-hit" type="number" step="0.1"></label>
     <label>Hit cap % vs raid bosses <input id="hit-cap" type="number" step="any"></label>
     <label id="exp-cap-row">Expertise cap % (boss dodge chance)
