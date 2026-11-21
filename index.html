@@ -65,6 +65,16 @@
           <input id="dual-wield" type="checkbox"><span>I dual wield (two one-handed weapons)</span></label>
       </section>
 
+      <!-- Paste the line from the GearSim Export addon (/gearsim in game) -->
+      <section class="card import-card">
+        <h2>Import from Game</h2>
+        <label class="field"><span>Paste from /gearsim</span>
+          <textarea id="import-text" rows="3" spellcheck="false" placeholder="GS1|DRUID|43|…"></textarea></label>
+        <button type="button" id="import-button" class="primary">Import character</button>
+        <p class="note" id="import-status"></p>
+        <small class="hint">Uses the GearSim Export addon: type /gearsim in game and press Ctrl+C. Feral Druids: export in Cat Form.</small>
+      </section>
+
       <!-- Advanced settings fold away; open them to tune the estimates -->
       <details class="card fold">
         <summary><h2>Advanced Tuning</h2><span class="fold-hint">Weights &amp; caps</span></summary>
@@ -107,7 +117,16 @@
              tick "I dual wield". Both weapons in a column are added together. -->
         <div class="search-row">
           <div class="item-search">
-            <p class="column-title">Equipped</p>
+            <div class="column-head">
+              <p class="column-title">Equipped</p>
+              <!-- Only shown after an import: switch between "my gear" and searching any item -->
+              <button type="button" class="link-button" id="equipped-mode" hidden>Manual input</button>
+            </div>
+            <!-- After an import: pick which of YOUR items to compare -->
+            <label class="field" id="slot-row" hidden><span>Your item</span>
+              <select id="slot-select"></select></label>
+            <!-- Before an import, or in "Manual input": search any item -->
+            <div id="equipped-manual">
             <form class="picker" id="pick-old-main">
               <label><span class="slot-label">Find equipped item</span>
                 <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
@@ -125,6 +144,9 @@
             <div class="dw-tools" hidden>
               <button type="button" id="swap-old">⇄ Swap hands</button>
             </div>
+            </div>
+            <!-- In "my gear" mode: shows which item is loaded, with a Wowhead link -->
+            <p class="picked note" id="slot-picked"></p>
           </div>
           <div class="item-search">
             <p class="column-title">New</p>

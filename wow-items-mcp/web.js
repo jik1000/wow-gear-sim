@@ -13,7 +13,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
-const { searchItems } = require("./wowhead.js");
+const { searchItems, getItem } = require("./wowhead.js");
 
 // Render (and most hosts) tell us which port to use in the PORT variable.
 const PORT = Number(process.env.PORT) || 3000;
@@ -71,6 +71,27 @@ const server = http.createServer(async (req, res) => {
     try {
       const items = await searchItems(name, url.searchParams.get("limit"));
       return sendJson(res, 200, { query: name, count: items.length, items });
+    } catch (err) {
+      return sendJson(res, 502, { error: `Lookup failed: ${err.message}` });
+    }
+  }
+
+  // --- A whole gear set at once (used by "Import from game") ---
+  // /api/items?list=7413.12726,12029.12751,279879
+  // Each entry is an item ID, then its bonus IDs after dots. Counts as ONE search
+  // for the per-visitor limit, and at most 20 items per request.
+  if (url.pathname === "/api/items") {
+    const entries = (url.searchParams.get("list") || "").split(",").filter(Boolean);
+    if (entries.length === 0 || entries.length > 20 || !entries.every((e) => /^\d{1,7}(\.\d{1,7}){0,8}$/.test(e))) {
+      return sendJson(res, 400, { error: "Expected up to 20 items like 7413.12726" });
+    }
+    if (tooManySearches(req)) return sendJson(res, 429, { error: "Too many searches, please wait a minute." });
+    try {
+      const items = await Promise.all(entries.map((entry) => {
+        const [id, ...bonuses] = entry.split(".");
+        return getItem(Number(id), bonuses);
+      }));
+      return sendJson(res, 200, { items }); // same order as the list; null = not found
     } catch (err) {
       return sendJson(res, 502, { error: `Lookup failed: ${err.message}` });
     }

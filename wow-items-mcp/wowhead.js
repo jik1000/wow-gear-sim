@@ -34,20 +34,26 @@ async function getJson(url) {
 }
 
 // Fetch one item's tooltip (or reuse it from the cache).
+// bonuses: optional list of bonus IDs from the game's item link. Random-suffix
+// items like "Infiltrator Cap of the Wolf" store their extra stats as a bonus
+// (e.g. 12726), and Wowhead adds those stats when we pass ?bonus=12726.
 // Returns null when the item doesn't exist in WoW Forever (empty tooltip).
-async function getItem(id) {
-  if (itemCache.has(id)) return itemCache.get(id);
+async function getItem(id, bonuses = []) {
+  const key = bonuses.length ? `${id}|${bonuses.join(":")}` : id;
+  if (itemCache.has(key)) return itemCache.get(key);
 
   let item = null;
   try {
-    const data = await getJson(TOOLTIP_URL + id);
+    const query = bonuses.length ? "?bonus=" + bonuses.join(":") : "";
+    const data = await getJson(TOOLTIP_URL + id + query);
     if (data && typeof data.tooltip === "string" && data.tooltip.trim() !== "") {
       const lines = tooltipToLines(data.tooltip);
       item = {
         name: data.name,
         id,
+        bonuses,
         quality: QUALITY_NAMES[data.quality] ?? String(data.quality),
-        link: ITEM_PAGE_URL + id,
+        link: ITEM_PAGE_URL + id + (bonuses.length ? "?bonus=" + bonuses.join(":") : ""),
         stats: parseStats(lines),
         tooltip: lines,
       };
@@ -58,7 +64,7 @@ async function getItem(id) {
     return null; // don't cache failures, so a later retry can work
   }
 
-  itemCache.set(id, item); // empty-tooltip items are cached as null too
+  itemCache.set(key, item); // empty-tooltip items are cached as null too
   return item;
 }
 
@@ -263,4 +269,4 @@ function parseStats(lines) {
 }
 
 // Share these with the other files that "require" this one.
-module.exports = { searchItems, MAX_RESULTS };
+module.exports = { searchItems, getItem, MAX_RESULTS };

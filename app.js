@@ -161,6 +161,7 @@ function loadBaseWeights() {
   const dwKey = $("class-select").value + "/" + $("spec-select").value;
   $("dw-row").hidden = !(dwKey in DUAL_WIELD_SPECS);
   $("dual-wield").checked = DUAL_WIELD_SPECS[dwKey] === true;
+  applyImportedStats(); // after an import, use the real crit/hit/DPS from the game
   refreshItems();
 }
 
@@ -294,6 +295,7 @@ function applyDualWieldLayout() {
     picker(side, "main").querySelector(".slot-label").textContent = dw ? SLOT_LABELS[side].main : SLOT_LABELS[side].single;
     if (!dw) picker(side, "off").querySelector(".weapon-note").textContent = "";
   }
+  syncSlotOptions(); // after an import, the slot dropdown's weapon choices follow dual wield
 }
 
 // Show "Using: <item>" (with a Wowhead link) under a search box, or clear it.
@@ -519,6 +521,15 @@ function update() {
   });
 
   const value = $("result-value");
+  // Nothing on the New side yet? Then there's nothing to compare: show a dash
+  // instead of "you'd lose your whole item".
+  const newEmpty = STATS.every((_, i) => !num("new" + i));
+  if (newEmpty) {
+    value.textContent = "—";
+    value.className = "result-value";
+    $("result-note").textContent = "Search for a new item to compare.";
+    return;
+  }
   const rounded = Math.round(percent * 100) / 100;
   value.textContent = formatPercent(rounded);
   value.className = "result-value" + (rounded > 0 ? " upgrade" : rounded < 0 ? " downgrade" : "");
@@ -535,6 +546,237 @@ $("class-select").addEventListener("change", fillSpecs);
 $("spec-select").addEventListener("change", loadBaseWeights);
 // Re-calculate on every keystroke in a box (dropdowns are handled above).
 document.addEventListener("input", (e) => { if (e.target.tagName === "INPUT") update(); });
+// ---------------------------------------------------------------------------
+// IMPORT FROM GAME: read the line from the GearSim Export addon (/gearsim).
+// Format (GS1), sections separated by "|":
+//   GS1|CLASS|level|str,agi,sta,int,spi|ap,rangedAp|mhDps,ohDps,rangedDps|
+//   crit,rangedCrit,spellCrit|hit,spellHit|expertise|spellDamage|
+//   slot:item:enchant:suffix:bonus.bonus;slot:...
+// (The addon in addon/GearSimExport writes this, so change both together.)
+// ---------------------------------------------------------------------------
+let imported = null; // { stats, gear: { slotNumber: item } } after an import
+
+const SLOT_NAMES = {
+  1: "Head", 2: "Neck", 3: "Shoulders", 15: "Back", 5: "Chest", 9: "Wrists", 10: "Hands",
+  6: "Waist", 7: "Legs", 8: "Feet", 11: "Ring", 12: "Ring", 13: "Trinket", 14: "Trinket",
+  16: "Main Hand", 17: "Off Hand", 18: "Ranged",
+};
+const SLOT_ORDER = [1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17, 18];
+
+function parseExport(text) {
+  const parts = text.trim().split("|");
+  if (parts[0] !== "GS1" || parts.length < 11) throw new Error("That doesn't look like a /gearsim export.");
+  const nums = (section) => section.split(",").map(Number);
+  const [str, agi, sta, int, spi] = nums(parts[3]);
+  const [ap, rangedAp] = nums(parts[4]);
+  const [mhDps, ohDps, rangedDps] = nums(parts[5]);
+  const [crit, rangedCrit, spellCrit] = nums(parts[6]);
+  const [hit, spellHit] = nums(parts[7]);
+  // "DRUID" -> "Druid"
+  const className = parts[1].charAt(0) + parts[1].slice(1).toLowerCase();
+  if (!SPECS[className]) throw new Error(`Unknown class "${parts[1]}".`);
+  const slots = parts[10].split(";").filter(Boolean).map((entry) => {
+    const [slot, id, enchant, suffix, bonuses] = entry.split(":");
+    return { slot: Number(slot), id: Number(id), enchant, suffix, bonuses: bonuses ? bonuses.split(".") : [] };
+  }).filter((s) => s.slot && s.id);
+  return {
+    className, level: Number(parts[2]),
+    stats: { str, agi, sta, int, spi, ap, rangedAp, mhDps, ohDps, rangedDps, crit, rangedCrit, spellCrit,
+             hit, spellHit, expertise: Number(parts[8]), spellDamage: Number(parts[9]) },
+    slots,
+  };
+}
+
+// Put the imported crit, hit, expertise and sheet DPS into the character boxes.
+// Which numbers depends on the spec: Hunters use ranged, casters use spell values.
+function applyImportedStats() {
+  if (!imported) return;
+  const st = imported.stats;
+  const hunter = $("class-select").value === "Hunter";
+  if (isCaster()) {
+    $("cur-crit").value = st.spellCrit;
+    $("cur-hit").value = st.spellHit;
+  } else {
+    $("sheet-dps").value = Math.round((hunter ? st.rangedDps : st.mhDps) * 10) / 10;
+    $("cur-crit").value = hunter ? st.rangedCrit : st.crit;
+    $("cur-hit").value = st.hit;
+    $("cur-exp").value = st.expertise;
+  }
+}
+
+async function importCharacter() {
+  const status = $("import-status");
+  const button = $("import-button");
+  status.className = "note";
+  let data;
+  try {
+    data = parseExport($("import-text").value);
+  } catch (err) {
+    status.textContent = err.message;
+    status.className = "note error";
+    return;
+  }
+  if (location.protocol === "file:") {
+    status.textContent = "Import needs the server: run node wow-items-mcp\\web.js and open http://localhost:3000";
+    status.className = "note error";
+    return;
+  }
+
+  button.disabled = true;
+  status.textContent = `Looking up ${data.slots.length} items on Wowhead…`;
+  try {
+    const list = data.slots.map((s) => [s.id, ...s.bonuses].join(".")).join(",");
+    const response = await fetch("/api/items?list=" + encodeURIComponent(list));
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Lookup failed");
+
+    const gear = {};
+    data.slots.forEach((s, i) => { gear[s.slot] = result.items[i] || { missingId: s.id }; });
+    imported = { stats: data.stats, gear };
+
+    // Switch to the imported class (this also fills crit/hit/DPS via applyImportedStats).
+    $("class-select").value = data.className;
+    $("class-select").dispatchEvent(new Event("change"));
+    // Tick "I dual wield" if there's a weapon in the off hand.
+    const offHand = gear[17]?.stats?.weapon;
+    if (offHand && !$("dw-row").hidden && ["One-Hand", "Off Hand"].includes(offHand.slot)) {
+      $("dual-wield").checked = true;
+      refreshItems();
+    }
+    enterGearMode();
+    const missing = Object.values(gear).filter((it) => it.missingId).length;
+    status.textContent = `Imported a level ${data.level} ${data.className} with ${data.slots.length} items` +
+      (missing ? ` (${missing} not found on Wowhead)` : "") + ". Pick your spec above.";
+    status.className = "note ok";
+  } catch (err) {
+    status.textContent = "Import failed: " + err.message;
+    status.className = "note error";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EQUIPPED SIDE: "my gear" mode (pick a slot) or "manual" mode (search any item)
+// After an import the page knows your gear, so the Equipped side becomes a slot
+// dropdown. "Manual input" switches back to searching any item.
+// ---------------------------------------------------------------------------
+let equippedMode = "manual";       // "gear" after an import
+let slotOptionsBuiltForDw = null;  // dual-wield state the dropdown was built for
+
+const realItem = (it) => (it && it.name ? it : null);
+const clearColumn = (side) => STATS.forEach((_, i) => { $(side + i).value = 0; });
+
+// Fill the slot dropdown: "Head — Infiltrator Cap", ... When dual wielding,
+// the two weapon slots become one "Weapons — Main + Off" choice.
+function renderSlotOptions() {
+  const select = $("slot-select");
+  const previous = select.value;
+  const dw = isDualWielding();
+  select.innerHTML = "";
+  for (const slot of SLOT_ORDER) {
+    if (dw && slot === 17) continue; // included in "Weapons"
+    let label = SLOT_NAMES[slot];
+    if (slot === 11 || slot === 12) label = "Ring " + (slot - 10);
+    if (slot === 13 || slot === 14) label = "Trinket " + (slot - 12);
+    const item = imported.gear[slot];
+    let name = item?.name || (item?.missingId ? `Unknown item #${item.missingId}` : "Empty");
+    let value = String(slot);
+    if (dw && slot === 16) {
+      value = "weapons";
+      label = "Weapons";
+      name = [imported.gear[16]?.name, imported.gear[17]?.name].filter(Boolean).join(" + ") || "Empty";
+    }
+    select.add(new Option(`${label} — ${name}`, value));
+  }
+  // Keep the same choice where possible (main hand <-> "Weapons")
+  let want = previous;
+  if (dw && (want === "16" || want === "17")) want = "weapons";
+  if (!dw && want === "weapons") want = "16";
+  if ([...select.options].some((o) => o.value === want)) select.value = want;
+  slotOptionsBuiltForDw = dw;
+}
+
+// Load the chosen slot's item(s) into the Equipped column.
+function loadEquippedFromSlot() {
+  const value = $("slot-select").value;
+  if (value === "weapons") {
+    picked.old.main = realItem(imported.gear[16]);
+    picked.old.off = realItem(imported.gear[17]);
+  } else {
+    picked.old.main = realItem(imported.gear[Number(value)]);
+    picked.old.off = null;
+  }
+  // "Using: <item> + <item>" with Wowhead links
+  const note = $("slot-picked");
+  note.textContent = "";
+  const items = [picked.old.main, picked.old.off].filter(Boolean);
+  if (!items.length) { note.textContent = "Nothing equipped in this slot."; return; }
+  note.append("Using: ");
+  items.forEach((item, i) => {
+    if (i) note.append(" + ");
+    const link = document.createElement("a");
+    link.href = item.link;
+    link.target = "_blank";
+    link.textContent = item.name;
+    note.append(link);
+  });
+}
+
+// A new slot was chosen: load it, clear the New side, and jump to the New search.
+function selectSlot() {
+  loadEquippedFromSlot();
+  picked.new.main = null;
+  picked.new.off = null;
+  showPicked("new", "main");
+  showPicked("new", "off");
+  clearColumn("old");
+  clearColumn("new");
+  refreshItems();
+  $("pick-new-main").querySelector("input").focus({ preventScroll: true });
+}
+
+// Switch between "gear" (slot dropdown) and "manual" (search any item).
+function setEquippedMode(mode) {
+  equippedMode = mode;
+  const gear = mode === "gear";
+  $("slot-row").hidden = !gear;
+  $("slot-picked").hidden = !gear;
+  $("equipped-manual").hidden = gear;
+  $("equipped-mode").textContent = gear ? "Manual input" : "Use my gear";
+  if (gear) {
+    selectSlot();
+  } else {
+    // Manual: start the Equipped side empty, ready to search any item
+    picked.old.main = null;
+    picked.old.off = null;
+    showPicked("old", "main");
+    showPicked("old", "off");
+    clearColumn("old");
+    refreshItems();
+    $("pick-old-main").querySelector("input").focus({ preventScroll: true });
+  }
+}
+
+// Called after a successful import.
+function enterGearMode() {
+  $("equipped-mode").hidden = false;
+  renderSlotOptions();
+  $("slot-select").value = "1"; // start on Head
+  setEquippedMode("gear");
+}
+
+// If dual wield is switched on or off, rebuild the dropdown (weapons change).
+function syncSlotOptions() {
+  if (!imported || slotOptionsBuiltForDw === isDualWielding()) return;
+  renderSlotOptions();
+  if (equippedMode === "gear") loadEquippedFromSlot();
+}
+
+$("import-button").addEventListener("click", importCharacter);
+$("slot-select").addEventListener("change", selectSlot);
+$("equipped-mode").addEventListener("click", () => setEquippedMode(equippedMode === "gear" ? "manual" : "gear"));
+
 // Ticking "I dual wield" shows or hides the off-hand boxes and recounts both columns.
 $("dual-wield").addEventListener("change", refreshItems);
 

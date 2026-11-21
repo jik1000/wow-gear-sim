@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: GearSim Export
+## Notes: Exports your gear and stats to the Gear DPS Simulator website.
+## Author: jik1000
+## Version: 0.2.0
+
+# Files the game loads, in this order (one per line).
+GearSimExport.lua
