@@ -15,7 +15,13 @@
 //   - 1% crit per 20 Agility (Warrior, Paladin, Shaman, Druid), 29 (Rogue), 53 (Hunter)
 //   - 1% spell crit per 54-60 Intellect (Paladin 54 ... Warlock 60)
 //   - Melee crits do +100% damage, spell crits +50%
-//   - Raid bosses: melee misses 9%, spells miss 16%
+//
+// Hit and Expertise caps vs raid bosses (community numbers from the WoW Forever
+// character sheet; Blizzard hasn't published them, so they are editable on the page):
+//   - Hit cap: 8% melee and ranged, 17% spells, 27% for dual-wield auto attacks
+//   - Expertise cap: 6.5% removes the boss's dodge chance (attacking from behind)
+//   https://conquestcapped.com/guides/wow-forever/wow-forever-hit-cap/
+//   https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority
 
 // One entry per damage spec.
 //   kind:       "physical" (uses Attack Power) or "caster" (uses Spell Damage)
@@ -52,15 +58,33 @@ const SPECS = {
 // Starting values for the base weights (% DPS per +1%). You can edit them on the page.
 //   Crit: physical crits add +100% damage, so +1% crit is about +1% DPS.
 //         Spell crits add +50%, so about +0.5%.
-//   Hit:  vs a boss you miss 9% (melee) or 16% (spells). Each 1% hit removes a
-//         miss, about 1 / 0.91 = 1.1% (melee) or 1 / 0.84 = 1.2% (spells) more damage.
+//   Hit:  vs a boss you miss 8% (melee) or 17% (spells). Each 1% hit removes a
+//         miss, about 1 / 0.92 = 1.1% (melee) or 1 / 0.83 = 1.2% (spells) more damage.
 //         This only holds until you reach the hit cap.
+//   Expertise uses the hit weight: a dodged attack does no damage, just like a miss.
 //   Haste: +1% attack/cast speed is about +1% DPS.
 //   Spell Damage: ESTIMATE, because it depends on your spells and your gear.
 const BASE = {
   physical: { crit: 1.0, hit: 1.1, haste: 1.0, spell: 0 },
   caster:   { crit: 0.5, hit: 1.2, haste: 1.0, spell: 0.08 },
 };
+
+// Default caps (editable on the page).
+const CAPS = {
+  physical: { hit: 8, expertise: 6.5 },
+  caster:   { hit: 17, expertise: 0 },
+};
+// Dual wielding: auto attacks miss much more, so hit keeps helping them up to 27%.
+// Past the normal cap only auto attacks benefit, which we estimate as half your damage.
+const DUAL_WIELD_HIT_CAP = 27;
+const DUAL_WIELD_AUTO_SHARE = 0.5;
+// Specs that can dual wield, and whether the checkbox starts ticked.
+const DUAL_WIELD_SPECS = {
+  "Rogue/Assassination": true, "Rogue/Combat": true, "Rogue/Subtlety": true,
+  "Warrior/Fury": true, "Warrior/Arms": false, "Shaman/Enhancement": false,
+};
+
+const clamp = (x, low, high) => Math.min(high, Math.max(low, x));
 
 // The stats shown in the compare table.
 // Stamina, Spirit and Armor don't add damage (weight 0), but they are shown
@@ -99,8 +123,17 @@ function loadBaseWeights() {
   $("b-hit").value = b.hit;
   $("b-haste").value = b.haste;
   $("b-spell").value = b.spell;
-  // The character-sheet DPS box only matters for physical specs.
-  $("sheet-row").hidden = spec().kind !== "physical";
+  // The character-sheet DPS box and Expertise only matter for physical specs.
+  const physical = spec().kind === "physical";
+  $("sheet-row").hidden = !physical;
+  $("cur-exp-row").hidden = !physical;
+  $("exp-cap-row").hidden = !physical;
+  $("hit-cap").value = CAPS[spec().kind].hit;
+  $("exp-cap").value = CAPS[spec().kind].expertise;
+  // Show the dual-wield checkbox only for specs that can dual wield.
+  const dwKey = $("class-select").value + "/" + $("spec-select").value;
+  $("dw-row").hidden = !(dwKey in DUAL_WIELD_SPECS);
+  $("dual-wield").checked = DUAL_WIELD_SPECS[dwKey] === true;
   // Feral Attack Power and school spell damage depend on the spec, so refill
   // those two boxes for items picked in the search.
   for (const side of ["old", "new"]) {
@@ -246,17 +279,36 @@ function update() {
   const ap = s.kind === "physical" && sheetDps > 0 ? 100 / (14 * sheetDps) : 0;
 
   const fromCrit = (perCrit) => (perCrit ? crit / perCrit : 0);
+
+  // --- Hit and Expertise with caps ---
+  // "Useful hit" for a given hit %: full value up to the cap, then (dual wield only)
+  // half value up to 27%, then nothing.
+  const physical = s.kind === "physical";
+  const hitCap = num("hit-cap"), curHit = num("cur-hit");
+  const dualWield = !$("dw-row").hidden && $("dual-wield").checked;
+  const usefulHit = (h) => clamp(h, 0, hitCap) +
+    (dualWield ? DUAL_WIELD_AUTO_SHARE * clamp(h - hitCap, 0, DUAL_WIELD_HIT_CAP - hitCap) : 0);
+  // Expertise: full value until the boss's dodge chance is gone. Casters don't use it.
+  const expCap = physical ? num("exp-cap") : 0, curExp = num("cur-exp");
+  const usefulExp = (e) => clamp(e, 0, expCap);
+  const expWeight = physical ? hit : 0; // a dodge is worth the same as a miss
+
+  // The weight shown in the table = what +1% would give you right now.
+  const hitNow = curHit < hitCap ? hit
+               : dualWield && curHit < DUAL_WIELD_HIT_CAP ? hit * DUAL_WIELD_AUTO_SHARE : 0;
+  const expNow = curExp < expCap ? expWeight : 0;
+
   const weights = {
     "Strength":     s.strAP * ap,
     "Agility":      s.agiAP * ap + fromCrit(s.agiPerCrit),
     "Intellect":    fromCrit(s.intPerCrit),
     "Attack Power": ap,
     "Spell Damage": spell,
-    "Hit %": hit, "Crit %": crit, "Haste %": haste,
+    "Hit %": hitNow, "Crit %": crit, "Haste %": haste,
     // Weapon DPS: +1 weapon DPS adds 1 DPS, the same as 14 Attack Power.
     "Weapon DPS":   s.weapon ? 14 * ap : 0,
-    // Read from items, but not counted yet: they need cap rules (planned next).
-    "Expertise %": 0, "Spell Penetration": 0,
+    "Expertise %":  expNow,
+    "Spell Penetration": 0, // read from items, but not counted yet
     "Stamina": 0, "Spirit": 0, "Armor": 0, // survival stats: no DPS
   };
 
@@ -268,7 +320,12 @@ function update() {
     "Intellect":    s.intPerCrit ? `1% spell crit per ${s.intPerCrit}` : "no damage effect",
     "Attack Power": s.kind === "physical" ? "14 AP = 1 DPS" : "not used by casters",
     "Weapon DPS":   s.weapon ? "+1 weapon DPS = +1 DPS (like 14 AP)" : "not used by casters",
-    "Expertise %":  "shown, not in the estimate yet",
+    "Hit %":        curHit < hitCap ? `full value until the ${hitCap}% cap (you have ${curHit}%)`
+                  : hitNow ? `past ${hitCap}%: only dual-wield auto attacks gain, until ${DUAL_WIELD_HIT_CAP}%`
+                  : `you're at the cap: no more value`,
+    "Expertise %":  !physical ? "not used by casters"
+                  : curExp < expCap ? `same as hit until the ${expCap}% dodge cap (you have ${curExp}%)`
+                  : "you're at the cap: no more value",
     "Spell Penetration": "shown, not in the estimate yet",
     "Stamina":      "no DPS (shown for info)",
     "Spirit":       "no DPS (shown for info)",
@@ -280,8 +337,25 @@ function update() {
   ).join("");
 
   // Add up (new - old) x weight for every stat.
+  // Hit and Expertise are different: swapping items moves you along the cap, so we
+  // compare your useful hit before and after the swap. Your current hit already
+  // includes the equipped item, so it's at least that item's hit.
+  const capped = {
+    "Hit %":       { useful: usefulHit, now: curHit, weight: hit },
+    "Expertise %": { useful: usefulExp, now: curExp, weight: expWeight },
+  };
   let percent = 0;
-  STATS.forEach((stat, i) => (percent += (num("new" + i) - num("old" + i)) * weights[stat]));
+  STATS.forEach((stat, i) => {
+    const oldValue = num("old" + i), newValue = num("new" + i);
+    const c = capped[stat];
+    if (c) {
+      const before = Math.max(c.now, oldValue);
+      const after = before - oldValue + newValue;
+      percent += (c.useful(after) - c.useful(before)) * c.weight;
+    } else {
+      percent += (newValue - oldValue) * weights[stat];
+    }
+  });
 
   const sign = percent >= 0 ? "+" : "";
   const result = $("result");
@@ -294,5 +368,6 @@ $("class-select").addEventListener("change", fillSpecs);
 $("spec-select").addEventListener("change", loadBaseWeights);
 // Re-calculate on every keystroke in a box (dropdowns are handled above).
 document.addEventListener("input", (e) => { if (e.target.tagName === "INPUT") update(); });
+$("dual-wield").addEventListener("change", update); // the checkbox
 
 fillSpecs(); // start up the page
