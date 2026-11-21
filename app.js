@@ -123,8 +123,15 @@ STATS.forEach((stat, i) => {
   document.querySelector("#compare tbody").innerHTML +=
     `<tr><td>${stat}</td>
          <td><input id="old${i}" type="number" step="any" value="0"></td>
-         <td><input id="new${i}" type="number" step="any" value="0"></td></tr>`;
+         <td><input id="new${i}" type="number" step="any" value="0"></td>
+         <td class="num effect" id="eff${i}"></td></tr>`;
 });
+
+// Class colors (the colors WoW players know each class by), used as the page's accent.
+const CLASS_COLORS = {
+  Druid: "#ff7c0a", Hunter: "#aad372", Mage: "#3fc7eb", Paladin: "#f48cba", Priest: "#f0f0f0",
+  Rogue: "#fff468", Shaman: "#2f8cf0", Warlock: "#8788ee", Warrior: "#c69b6d",
+};
 
 const spec = () => SPECS[$("class-select").value][$("spec-select").value];
 
@@ -132,6 +139,7 @@ const spec = () => SPECS[$("class-select").value][$("spec-select").value];
 function fillSpecs() {
   $("spec-select").innerHTML = "";
   for (const specName in SPECS[$("class-select").value]) $("spec-select").add(new Option(specName));
+  document.documentElement.style.setProperty("--class", CLASS_COLORS[$("class-select").value]);
   loadBaseWeights();
 }
 
@@ -491,20 +499,36 @@ function update() {
   STATS.forEach((stat, i) => {
     const oldValue = num("old" + i), newValue = num("new" + i);
     const c = capped[stat];
+    let change;
     if (c) {
       const before = Math.max(c.now, oldValue);
       const after = before - oldValue + newValue;
-      percent += (c.useful(after) - c.useful(before)) * c.weight;
+      change = (c.useful(after) - c.useful(before)) * c.weight;
     } else {
-      percent += (newValue - oldValue) * weights[stat];
+      change = (newValue - oldValue) * weights[stat];
     }
+    percent += change;
+
+    // Show each stat's share of the result in the "DPS effect" column,
+    // and fade rows that are 0 on both sides.
+    const cell = $("eff" + i);
+    const rounded = Math.round(change * 100) / 100;
+    cell.textContent = rounded ? formatPercent(rounded) : "—";
+    cell.className = "num effect" + (rounded > 0 ? " up" : rounded < 0 ? " down" : "");
+    cell.closest("tr").classList.toggle("empty", !oldValue && !newValue);
   });
 
-  const sign = percent >= 0 ? "+" : "";
-  const result = $("result");
-  result.className = percent >= 0 ? "upgrade" : "downgrade";
-  result.textContent = `Estimated change: ${sign}${percent.toFixed(2)}% DPS`;
-  if (s.kind === "physical" && !sheetDps) result.textContent += " (enter your character sheet DPS to count Str/Agi/AP)";
+  const value = $("result-value");
+  const rounded = Math.round(percent * 100) / 100;
+  value.textContent = formatPercent(rounded);
+  value.className = "result-value" + (rounded > 0 ? " upgrade" : rounded < 0 ? " downgrade" : "");
+  $("result-note").textContent = s.kind === "physical" && !sheetDps
+    ? "Enter your character sheet DPS to count Strength, Agility and Attack Power." : "";
+}
+
+// "+1.23%" / "−0.50%" (a real minus sign looks better than a hyphen)
+function formatPercent(x) {
+  return (x > 0 ? "+" : x < 0 ? "−" : "+") + Math.abs(x).toFixed(2) + "%";
 }
 
 $("class-select").addEventListener("change", fillSpecs);

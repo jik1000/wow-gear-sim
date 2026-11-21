@@ -1,82 +1,371 @@
-/* style.css: the LOOK of the page (colors, spacing, fonts). */
+/* style.css: the LOOK of the page (colors, spacing, fonts).
+   Theme: sleek and minimal, inspired by fantasy MMO interfaces —
+   deep night-blue panels, muted gold accents, a serif for headings. */
+
+/* ---------------------------------------------------------------------------
+   1. Colors and sizes, all in one place. Change a value here and it changes
+      everywhere. "--class" is set by app.js to your class's color.
+   --------------------------------------------------------------------------- */
+:root {
+  --bg: #090b10;            /* page background */
+  --panel: #10131a;         /* cards */
+  --panel-raised: #151922;  /* inputs, table rows */
+  --line: #232937;          /* thin borders */
+  --line-strong: #323a4b;
+  --gold: #c9a961;          /* main accent */
+  --gold-bright: #e8cf8f;
+  --gold-dim: rgba(201, 169, 97, 0.35);
+  --text: #e9e4d8;          /* slightly warm off-white, like parchment */
+  --muted: #8b92a1;
+  --faint: #5d6474;
+  --good: #57d17a;          /* upgrade */
+  --bad: #f06464;           /* downgrade */
+  --class: #c9a961;         /* replaced by your class color */
+  --radius: 10px;
+  --font-head: "Cinzel", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   2. Page basics
+   --------------------------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
 
 body {
-  font-family: system-ui, sans-serif;
-  background: #1b1d23;   /* dark background */
-  color: #e8e6e3;        /* light text */
-  max-width: 640px;
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background-color: var(--bg);
+  /* A soft glow at the top, like light over a dark landscape */
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201, 169, 97, 0.10), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(60, 90, 160, 0.10), transparent 70%);
+  background-repeat: no-repeat;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2 { font-family: var(--font-head); font-weight: 600; margin: 0; }
+
+a { color: var(--gold-bright); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Make sure hidden things stay hidden (some rules below set "display") */
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------------------
+   3. Header and footer
+   --------------------------------------------------------------------------- */
+.site-header {
+  max-width: 760px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 48px 16px 28px;
+  text-align: center;
+}
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-size: clamp(30px, 5vw, 46px);
+  letter-spacing: 0.04em;
+  color: var(--gold-bright);
+  /* A gentle metallic sheen on the title */
+  background: linear-gradient(180deg, #f3e2b3 0%, #c9a961 60%, #9c7d3e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* Thin gold line with a small diamond in the middle */
+.divider {
+  position: relative;
+  height: 1px;
+  max-width: 280px;
+  margin: 18px auto;
+  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+}
+.divider span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  background: var(--gold);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.lead { margin: 0 auto; max-width: 620px; color: var(--muted); font-size: 14px; }
+
+.site-footer {
+  max-width: 1160px;
+  margin: 8px auto 0;
+  padding: 24px 16px 40px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
 }
 
-h1 { color: #f4c542; }   /* gold title */
+/* ---------------------------------------------------------------------------
+   4. Two-column layout (one column on narrow screens)
+   --------------------------------------------------------------------------- */
+.layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 16px;
+  align-items: start;
+}
+.sidebar, .content { display: grid; gap: 20px; min-width: 0; }
 
-.note { color: #a0a4ad; font-size: 0.9em; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
 
-section {
-  background: #262932;
-  border-radius: 8px;
-  padding: 12px 16px;
+/* ---------------------------------------------------------------------------
+   5. Cards (the panels)
+   --------------------------------------------------------------------------- */
+.card {
+  position: relative;
+  background: linear-gradient(180deg, var(--panel-raised) 0%, var(--panel) 120px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+/* A thin gold line along the top edge of every card */
+.card::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+}
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 16px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
 }
 
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 4px; text-align: left; }
+/* The character card's top line uses your class color */
+.character-card::before { background: linear-gradient(90deg, transparent, var(--class), transparent); }
+.class-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--class);
+  box-shadow: 0 0 10px var(--class);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+/* Fold-away cards (<details>) */
+.fold { padding: 0; }
+.fold summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary h2 { margin: 0; }
+/* A small chevron that turns when the card opens */
+.fold summary h2::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-right: 1.5px solid var(--gold);
+  border-bottom: 1.5px solid var(--gold);
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+}
+.fold[open] summary h2::after { transform: rotate(45deg); }
+.fold-hint { font-size: 12px; color: var(--faint); }
+.fold-body { padding: 0 20px 20px; }
+
+/* ---------------------------------------------------------------------------
+   6. Form fields
+   --------------------------------------------------------------------------- */
+.field { display: block; margin-bottom: 14px; }
+.field > span, .item-search label > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field small, .hint { display: block; margin-top: 6px; font-size: 12px; color: var(--faint); line-height: 1.4; }
+.hint { margin: -4px 0 14px; }
+
+.field-grid { display: grid; gap: 0 12px; }
+.field-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.field-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 input, select {
   width: 100%;
-  box-sizing: border-box;
-  background: #14161a;
-  color: inherit;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 4px;
+  height: 38px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: #0b0e14;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:hover, select:hover { border-color: #414a5e; }
+input:focus, select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.15);
+}
+/* Custom arrow on dropdowns */
+select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%),
+                    linear-gradient(135deg, var(--gold) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 16px, calc(100% - 12px) 16px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+input[type="search"]::-webkit-search-cancel-button { filter: grayscale(1) brightness(1.4); }
+input::placeholder { color: var(--faint); }
+
+/* Checkbox row */
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+}
+label.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
 }
 
-/* The result box turns green for an upgrade, red for a downgrade */
-#result { font-size: 1.3em; font-weight: bold; }
-.upgrade   { color: #5fd068; }
-.downgrade { color: #ef5b5b; }
+/* Buttons (Swap hands, Copy) */
+button { font: inherit; }
+.dw-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.dw-tools button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--gold-bright);
+  background: rgba(201, 169, 97, 0.06);
+  border: 1px solid var(--gold-dim);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.dw-tools button:hover { background: rgba(201, 169, 97, 0.14); border-color: var(--gold); }
 
-/* Put each label on its own line with a little space */
-label { display: block; margin-bottom: 8px; }
+/* ---------------------------------------------------------------------------
+   7. The result
+   --------------------------------------------------------------------------- */
+.result-card {
+  position: sticky;
+  top: 16px;
+  z-index: 5;
+  text-align: center;
+  padding: 22px 20px 20px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(201, 169, 97, 0.10), transparent 70%),
+              linear-gradient(180deg, #161a24, #10131a);
+  border-color: var(--line-strong);
+  backdrop-filter: blur(6px);
+}
+.result-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.result-value {
+  margin: 4px 0 0;
+  font-family: var(--font-head);
+  font-size: clamp(40px, 7vw, 56px);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  transition: color 0.2s, text-shadow 0.2s;
+}
+.result-value.upgrade   { color: var(--good); text-shadow: 0 0 24px rgba(87, 209, 122, 0.25); }
+.result-value.downgrade { color: var(--bad);  text-shadow: 0 0 24px rgba(240, 100, 100, 0.25); }
+.result-note { margin: 6px 0 0; font-size: 12px; color: var(--faint); min-height: 1em; }
+.result-note:empty { display: none; }
 
-/* Item search boxes: two side by side, stacked on narrow phones */
-.search-row { display: flex; gap: 12px; margin-bottom: 8px; }
-.item-search { flex: 1; min-width: 0; }
-@media (max-width: 480px) { .search-row { flex-direction: column; } }
+/* ---------------------------------------------------------------------------
+   8. Item search
+   --------------------------------------------------------------------------- */
+.search-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 560px) { .search-row { grid-template-columns: minmax(0, 1fr); } }
 
-.results { list-style: none; margin: 0; padding: 0; }
+.column-title {
+  margin: 0 0 10px;
+  font-family: var(--font-head);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.picker + .picker { margin-top: 12px; }
+
+.note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.note:empty { display: none; }
+.picked a { font-weight: 500; }
+.weapon-note { color: #c7a96a; }
+
+/* Search results look like item tooltips */
+.results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.results:empty { display: none; }
 .results button {
   width: 100%;
+  padding: 9px 12px;
   text-align: left;
-  background: #14161a;
-  color: inherit;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 6px;
-  margin-bottom: 4px;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(16, 24, 48, 0.95), rgba(8, 12, 26, 0.95));
+  border: 1px solid #39425a;
+  border-radius: 6px;
   cursor: pointer;
-  font: inherit;
+  transition: border-color 0.15s, transform 0.15s;
 }
-.results button:hover { border-color: #f4c542; }
-.results .note { display: block; font-size: 0.8em; }
-.picked a { color: #f4c542; }
-
-/* Dual wield: a little gap between the main-hand and off-hand boxes, and the buttons */
-.picker + .picker { margin-top: 8px; }
-.dw-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.dw-tools[hidden] { display: none; }
-.dw-tools button {
-  background: #14161a;
-  color: inherit;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
-  font: inherit;
-}
-.dw-tools button:hover { border-color: #f4c542; }
+.results button:hover { border-color: var(--gold); transform: translateY(-1px); }
+.results button > span:first-child { display: block; font-weight: 600; font-size: 14px; }
+.results .note { display: block; margin-top: 2px; font-size: 12px; color: #b9bfcc; }
 
 /* WoW item quality colors */
 .q-Poor { color: #9d9d9d; }
@@ -85,9 +374,63 @@ label { display: block; margin-bottom: 8px; }
 .q-Rare { color: #0070dd; }
 .q-Epic { color: #a335ee; }
 .q-Legendary { color: #ff8000; }
+/* Rare blue is hard to read on dark panels, so brighten it a little inside tooltips */
+.results .q-Rare { color: #3c9cff; }
 
-/* A checkbox sits in front of its text instead of filling the whole row */
-label.check input { width: auto; margin-right: 6px; }
+/* ---------------------------------------------------------------------------
+   9. Tables (compare and weights)
+   --------------------------------------------------------------------------- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  padding: 0 10px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-strong);
+}
+td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: opacity 0.2s, background 0.15s; }
+tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-/* Make sure hidden things stay hidden */
-[hidden] { display: none; }
+#compare td:first-child { color: var(--text); white-space: nowrap; }
+#compare input { height: 32px; font-variant-numeric: tabular-nums; }
+#compare td:nth-child(2), #compare td:nth-child(3) { width: 30%; }
+/* Rows that are 0 on both sides fade back, so the stats that matter stand out */
+#compare tr.empty { opacity: 0.42; }
+#compare tr.empty:hover, #compare tr.empty:focus-within { opacity: 1; }
+.effect { color: var(--faint); }
+.effect.up { color: var(--good); }
+.effect.down { color: var(--bad); }
+
+#weights td:nth-child(2) { color: var(--gold-bright); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#weights td.note { margin: 0; font-size: 12px; color: var(--faint); }
+
+/* ---------------------------------------------------------------------------
+   10. Phones
+   --------------------------------------------------------------------------- */
+@media (max-width: 560px) {
+  .site-header { padding-top: 32px; }
+  .card { padding: 16px; }
+  .fold summary { padding: 16px; }
+  .fold-body { padding: 0 16px 16px; }
+  .fold-hint { display: none; }
+  td, th { padding-left: 6px; padding-right: 6px; }
+  /* Fixed column shares so both number boxes stay usable on a narrow screen */
+  #compare { table-layout: fixed; }
+  #compare th:nth-child(1) { width: 31%; }
+  #compare th:nth-child(2), #compare th:nth-child(3) { width: 25%; }
+  #compare th:nth-child(4) { width: 19%; }
+  #compare th { font-size: 10px; letter-spacing: 0.04em; }
+  #compare td:first-child { white-space: normal; font-size: 13px; line-height: 1.25; }
+  #compare td:nth-child(2), #compare td:nth-child(3) { width: auto; }
+  #compare input { padding: 0 6px; }
+  #compare .effect { font-size: 12px; }
+  /* On phones the result sticks to the bottom of the screen instead */
+  .result-card { top: auto; bottom: 10px; order: 99; }
+}

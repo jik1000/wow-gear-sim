@@ -5,119 +5,174 @@
   To use it: start the local server with  node wow-items-mcp\web.js
   and open http://localhost:3000 (the item search needs that server).
   Double-clicking this file still works, but then the search is off.
+
+  Layout: a header, then two columns on wide screens:
+    left  (aside): your character and the advanced settings
+    right (main):  the result, the item comparison, and the weights table
+  On phones everything stacks into one column.
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gear DPS Simulator</title>
+  <!-- Fonts: Cinzel for headings (classic fantasy serif), Inter for everything else -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Gear DPS Simulator</h1>
-  <p class="note">
-    Fan-made estimate for WoW Forever. Strength, Agility, Intellect and Attack Power
-    weights are calculated from each class's real stat conversions. Crit, Hit, Haste
-    and Spell Damage are starting estimates you can edit. A weight = how many % more
-    DPS you get from +1 of that stat.
-  </p>
+  <header class="site-header">
+    <p class="eyebrow">WoW Forever · Upgrade Estimator</p>
+    <h1>Gear DPS Simulator</h1>
+    <div class="divider" aria-hidden="true"><span></span></div>
+    <p class="lead">
+      Compare two items and see how much DPS you gain or lose. Strength, Agility, Intellect and
+      Attack Power use each class's real stat conversions; the rest are starting estimates you can tune.
+    </p>
+  </header>
 
-  <section>
-    <h2>1. Your character</h2>
-    <label>Class <select id="class-select"></select></label>
-    <label>Spec <select id="spec-select"></select></label>
-    <!-- Physical specs need this to turn Attack Power into a % -->
-    <label id="sheet-row">Character sheet DPS (hover "Damage" in your character
-      panel; Hunters use the Ranged damage, Feral checks it in Cat Form)
-      <input id="sheet-dps" type="number" value="100"></label>
-    <!-- Hit and Expertise stop helping at a cap, so we need to know where you are now -->
-    <label>Your crit % now (character sheet; casters use spell crit)
-      <input id="cur-crit" type="number" step="any" value="0"></label>
-    <label>Your hit % now (character sheet, wearing your equipped item)
-      <input id="cur-hit" type="number" step="any" value="0"></label>
-    <label id="cur-exp-row">Your expertise % now (wearing your equipped item)
-      <input id="cur-exp" type="number" step="any" value="0"></label>
-    <label id="dw-row" class="check">
-      <input id="dual-wield" type="checkbox"> I dual wield (two one-handed weapons)</label>
-  </section>
-
-  <section>
-    <h2>2. Base weights (editable)</h2>
-    <!-- Crit's weight is calculated from this and "Your crit % now" -->
-    <label>Crit damage bonus % (how much extra a crit does, with talents)
-      <input id="crit-bonus" type="number" step="any"></label>
-    <label>Hit % (until hit cap) <input id="b-hit" type="number" step="0.1"></label>
-    <label>Hit cap % vs raid bosses <input id="hit-cap" type="number" step="any"></label>
-    <label id="exp-cap-row">Expertise cap % (boss dodge chance)
-      <input id="exp-cap" type="number" step="any"></label>
-    <label>Haste % <input id="b-haste" type="number" step="0.1"></label>
-    <label>Spell Damage (casters) <input id="b-spell" type="number" step="0.01"></label>
-  </section>
-
-  <section>
-    <h2>3. All stat weights</h2>
-    <!-- app.js fills this table and explains each number -->
-    <table id="weights"></table>
-  </section>
-
-  <section>
-    <h2>4. Compare two items</h2>
-    <!-- Search Wowhead (WoW Forever) for an item, click a result, and its
-         stats fill that column below. You can still type stats by hand. -->
-    <!-- Each column has one search box, or two (main hand + off hand) when you
-         tick "I dual wield". Both weapons in a column are added together. -->
-    <div class="search-row">
-      <div class="item-search">
-        <form class="picker" id="pick-old-main">
-          <label><span class="slot-label">Find equipped item</span>
-            <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
-          <ul class="results"></ul>
-          <p class="picked note"></p>
-          <p class="weapon-note note"></p>
-        </form>
-        <form class="picker" id="pick-old-off" hidden>
-          <label><span class="slot-label">Equipped off hand</span>
-            <input type="search" placeholder="e.g. Dal'Rend's Tribal Guardian" autocomplete="off"></label>
-          <ul class="results"></ul>
-          <p class="picked note"></p>
-          <p class="weapon-note note"></p>
-        </form>
-        <div class="dw-tools" hidden>
-          <button type="button" id="swap-old">⇄ Swap hands</button>
+  <div class="layout">
+    <!-- ===================== LEFT: character and settings ===================== -->
+    <aside class="sidebar">
+      <section class="card character-card">
+        <h2><span class="class-dot" aria-hidden="true"></span>Your Character</h2>
+        <div class="field-grid two">
+          <label class="field"><span>Class</span><select id="class-select"></select></label>
+          <label class="field"><span>Spec</span><select id="spec-select"></select></label>
         </div>
-      </div>
-      <div class="item-search">
-        <form class="picker" id="pick-new-main">
-          <label><span class="slot-label">Find new item</span>
-            <input type="search" placeholder="e.g. Golem War Cloak" autocomplete="off"></label>
-          <ul class="results"></ul>
-          <p class="picked note"></p>
-          <p class="weapon-note note"></p>
-        </form>
-        <form class="picker" id="pick-new-off" hidden>
-          <label><span class="slot-label">New off hand</span>
-            <input type="search" placeholder="e.g. Felstriker" autocomplete="off"></label>
-          <ul class="results"></ul>
-          <p class="picked note"></p>
-          <p class="weapon-note note"></p>
-        </form>
-        <div class="dw-tools" hidden>
-          <button type="button" id="swap-new">⇄ Swap hands</button>
-          <button type="button" id="copy-old">Copy equipped weapons</button>
-        </div>
-      </div>
-    </div>
-    <table id="compare">
-      <thead>
-        <tr><th>Stat</th><th>Equipped item</th><th>New item</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </section>
 
-  <section id="result">
-    <!-- app.js writes the answer here -->
-  </section>
+        <!-- Physical specs need this to turn Attack Power into a % -->
+        <label class="field" id="sheet-row">
+          <span>Character sheet DPS</span>
+          <input id="sheet-dps" type="number" value="100">
+          <small>Hover "Damage" in your character panel. Hunters use Ranged damage; Feral checks it in Cat Form.</small>
+        </label>
+
+        <!-- Crit, Hit and Expertise depend on what you already have -->
+        <div class="field-grid three">
+          <label class="field"><span>Crit %</span>
+            <input id="cur-crit" type="number" step="any" value="0"></label>
+          <label class="field"><span>Hit %</span>
+            <input id="cur-hit" type="number" step="any" value="0"></label>
+          <label class="field" id="cur-exp-row"><span>Expertise %</span>
+            <input id="cur-exp" type="number" step="any" value="0"></label>
+        </div>
+        <small class="hint">Your current values from the character sheet, wearing your equipped item. Casters use spell crit.</small>
+
+        <label id="dw-row" class="check">
+          <input id="dual-wield" type="checkbox"><span>I dual wield (two one-handed weapons)</span></label>
+      </section>
+
+      <!-- Advanced settings fold away; open them to tune the estimates -->
+      <details class="card fold">
+        <summary><h2>Advanced Tuning</h2><span class="fold-hint">Weights &amp; caps</span></summary>
+        <div class="fold-body">
+          <!-- Crit's weight is calculated from this and "Crit %" above -->
+          <label class="field"><span>Crit damage bonus %</span>
+            <input id="crit-bonus" type="number" step="any">
+            <small>How much extra a crit does, including talents.</small></label>
+          <div class="field-grid two">
+            <label class="field"><span>Hit weight %</span>
+              <input id="b-hit" type="number" step="0.1"></label>
+            <label class="field"><span>Hit cap %</span>
+              <input id="hit-cap" type="number" step="any"></label>
+            <label class="field" id="exp-cap-row"><span>Expertise cap %</span>
+              <input id="exp-cap" type="number" step="any"></label>
+            <label class="field"><span>Haste weight %</span>
+              <input id="b-haste" type="number" step="0.1"></label>
+            <label class="field"><span>Spell Damage weight %</span>
+              <input id="b-spell" type="number" step="0.01"></label>
+          </div>
+          <small class="hint">A weight is how many % more DPS you get from +1 of that stat.</small>
+        </div>
+      </details>
+    </aside>
+
+    <!-- ===================== RIGHT: result and comparison ===================== -->
+    <main class="content">
+      <!-- app.js writes the number and its color into #result-value -->
+      <section class="card result-card" id="result">
+        <p class="result-label">Estimated DPS change</p>
+        <p class="result-value" id="result-value">+0.00%</p>
+        <p class="result-note" id="result-note"></p>
+      </section>
+
+      <section class="card">
+        <h2>Compare Items</h2>
+        <!-- Search Wowhead (WoW Forever) for an item, click a result, and its
+             stats fill that column below. You can still type stats by hand.
+             Each column has one search box, or two (main hand + off hand) when you
+             tick "I dual wield". Both weapons in a column are added together. -->
+        <div class="search-row">
+          <div class="item-search">
+            <p class="column-title">Equipped</p>
+            <form class="picker" id="pick-old-main">
+              <label><span class="slot-label">Find equipped item</span>
+                <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
+              <p class="picked note"></p>
+              <ul class="results"></ul>
+              <p class="weapon-note note"></p>
+            </form>
+            <form class="picker" id="pick-old-off" hidden>
+              <label><span class="slot-label">Equipped off hand</span>
+                <input type="search" placeholder="e.g. Dal'Rend's Tribal Guardian" autocomplete="off"></label>
+              <p class="picked note"></p>
+              <ul class="results"></ul>
+              <p class="weapon-note note"></p>
+            </form>
+            <div class="dw-tools" hidden>
+              <button type="button" id="swap-old">⇄ Swap hands</button>
+            </div>
+          </div>
+          <div class="item-search">
+            <p class="column-title">New</p>
+            <form class="picker" id="pick-new-main">
+              <label><span class="slot-label">Find new item</span>
+                <input type="search" placeholder="e.g. Golem War Cloak" autocomplete="off"></label>
+              <p class="picked note"></p>
+              <ul class="results"></ul>
+              <p class="weapon-note note"></p>
+            </form>
+            <form class="picker" id="pick-new-off" hidden>
+              <label><span class="slot-label">New off hand</span>
+                <input type="search" placeholder="e.g. Felstriker" autocomplete="off"></label>
+              <p class="picked note"></p>
+              <ul class="results"></ul>
+              <p class="weapon-note note"></p>
+            </form>
+            <div class="dw-tools" hidden>
+              <button type="button" id="swap-new">⇄ Swap hands</button>
+              <button type="button" id="copy-old">Copy equipped weapons</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="compare">
+            <thead>
+              <tr><th>Stat</th><th>Equipped</th><th>New</th><th class="num" title="How much each stat adds to or takes from your DPS">Effect</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- The full weights table folds away too -->
+      <details class="card fold">
+        <summary><h2>Stat Weights</h2><span class="fold-hint">How every number is calculated</span></summary>
+        <div class="fold-body table-wrap">
+          <!-- app.js fills this table and explains each number -->
+          <table id="weights"></table>
+        </div>
+      </details>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    Fan-made tool, not affiliated with Blizzard Entertainment. Item data from Wowhead's WoW Forever database.
+  </footer>
 
   <script src="app.js"></script>
 </body>
