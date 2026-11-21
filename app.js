@@ -23,13 +23,16 @@
 //   agiAP:      Attack Power per Agility
 //   agiPerCrit: Agility needed for +1% crit (0 = Agility gives no crit)
 //   intPerCrit: Intellect needed for +1% spell crit (0 = not used)
+//   weapon:     true if the weapon's own damage (Weapon DPS) matters for this spec
 // Healer and tank specs are left out because this tool measures damage.
-const PHYS = (strAP, agiAP, agiPerCrit) => ({ kind: "physical", strAP, agiAP, agiPerCrit, intPerCrit: 0 });
+const PHYS = (strAP, agiAP, agiPerCrit, weapon = true) =>
+  ({ kind: "physical", strAP, agiAP, agiPerCrit, intPerCrit: 0, weapon });
 // Only Paladin (54) and Warlock (60) are named in the source; 57 is a middle guess for the others.
-const CASTER = (intPerCrit) => ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit });
+const CASTER = (intPerCrit) => ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false });
 
 const SPECS = {
-  Druid:   { Feral: PHYS(2, 1, 20), Balance: CASTER(57) },
+  // Feral: Cat and Bear form ignore the weapon's damage, so weapon = false.
+  Druid:   { Feral: PHYS(2, 1, 20, false), Balance: CASTER(57) },
   Hunter:  { "Beast Mastery": PHYS(0, 2, 53), Marksmanship: PHYS(0, 2, 53), Survival: PHYS(0, 2, 53) },
   Mage:    { Arcane: CASTER(57), Fire: CASTER(57), Frost: CASTER(57) },
   Paladin: { Retribution: PHYS(2, 0, 20) },
@@ -57,7 +60,7 @@ const BASE = {
 // Stamina, Spirit and Armor don't add damage (weight 0), but they are shown
 // so you can see every stat an item has after picking it in the search.
 const STATS = ["Strength", "Agility", "Intellect", "Attack Power", "Spell Damage", "Hit %", "Crit %", "Haste %",
-               "Stamina", "Spirit", "Armor"];
+               "Weapon DPS", "Stamina", "Spirit", "Armor"];
 
 const $ = (id) => document.getElementById(id);
 const num = (id) => Number($(id).value) || 0; // empty box counts as 0
@@ -70,8 +73,8 @@ $("class-select").value = "Druid";
 STATS.forEach((stat, i) => {
   document.querySelector("#compare tbody").innerHTML +=
     `<tr><td>${stat}</td>
-         <td><input id="old${i}" type="number" value="0"></td>
-         <td><input id="new${i}" type="number" value="0"></td></tr>`;
+         <td><input id="old${i}" type="number" step="any" value="0"></td>
+         <td><input id="new${i}" type="number" step="any" value="0"></td></tr>`;
 });
 
 const spec = () => SPECS[$("class-select").value][$("spec-select").value];
@@ -123,7 +126,10 @@ function attackPowerFor(item) {
 function fillColumn(side, item) {
   picked[side] = item;
   STATS.forEach((stat, i) => {
-    $(side + i).value = stat === "Attack Power" ? attackPowerFor(item) : item.stats[ITEM_STAT[stat]];
+    $(side + i).value =
+      stat === "Attack Power" ? attackPowerFor(item)
+      : stat === "Weapon DPS" ? item.stats.weapon?.dps ?? 0 // 0 for items that aren't weapons
+      : item.stats[ITEM_STAT[stat]];
   });
   update();
 }
@@ -221,6 +227,8 @@ function update() {
     "Attack Power": ap,
     "Spell Damage": spell,
     "Hit %": hit, "Crit %": crit, "Haste %": haste,
+    // Weapon DPS: +1 weapon DPS adds 1 DPS, the same as 14 Attack Power.
+    "Weapon DPS":   s.weapon ? 14 * ap : 0,
     "Stamina": 0, "Spirit": 0, "Armor": 0, // survival stats: no DPS
   };
 
@@ -231,6 +239,8 @@ function update() {
                       .filter(Boolean).join(" + ") || "no effect for this spec",
     "Intellect":    s.intPerCrit ? `1% spell crit per ${s.intPerCrit}` : "no damage effect",
     "Attack Power": s.kind === "physical" ? "14 AP = 1 DPS" : "not used by casters",
+    "Weapon DPS":   s.weapon ? "+1 weapon DPS = +1 DPS (like 14 AP)"
+                  : s.kind === "caster" ? "not used by casters" : "Cat/Bear form ignores weapon damage",
     "Stamina":      "no DPS (shown for info)",
     "Spirit":       "no DPS (shown for info)",
     "Armor":        "no DPS (shown for info)",
