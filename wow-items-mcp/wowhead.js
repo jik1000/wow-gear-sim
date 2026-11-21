@@ -124,6 +124,8 @@ function parseStats(lines) {
     healing: 0,
     hitPercent: 0,
     critPercent: 0,
+    spellHitPercent: 0,    // "chance to hit with spells" (spells only)
+    spellCritPercent: 0,   // "Critical Strike with Spells" (spells only)
     hastePercent: 0,
     expertisePercent: 0,   // "Reduces chance to be Dodged or Parried by N%"
     spellPenetration: 0,   // "Your spells pierce N Magical Resistance"
@@ -202,6 +204,10 @@ function parseStats(lines) {
     m = effect.match(/damage done by up to (\d+) and healing done by up to (\d+) for all magical spells/i);
     if (m) { stats.spellDamage += Number(m[1]); stats.healing += Number(m[2]); continue; }
 
+    // Third wording: "Increases spell damage and healing by up to 18." (or "spell power by 18")
+    m = effect.match(/spell damage and healing by up to (\d+)/i) || effect.match(/^Increases spell power by (\d+)/i);
+    if (m) { stats.spellDamage += Number(m[1]); stats.healing += Number(m[1]); continue; }
+
     // One spell school only: "Increases damage done by Fire spells and effects by up to 34."
     m = effect.match(/^Increases damage done by (Arcane|Fire|Frost|Holy|Nature|Shadow) spells and effects by up to (\d+)/i);
     if (m) { stats.schoolSpellDamage[m[1].toLowerCase()] += Number(m[2]); continue; }
@@ -214,11 +220,19 @@ function parseStats(lines) {
     m = effect.match(/^Increases damage done by magical spells and effects by up to (\d+)/i);
     if (m) { stats.spellDamage += Number(m[1]); continue; }
 
-    // Hit: "Improves your chance to hit by 2.0%." ("hit with spells" is spell hit, not counted)
+    // Spell-only hit and crit: "Improves your chance to hit with spells by 1%." and
+    // "Improves your chance to get a Critical Strike with Spells by 1.0%."
+    // Kept separate, because they only help casters.
+    m = effect.match(/chance to hit with spells by (\d+(?:\.\d+)?)%/i);
+    if (m) { stats.spellHitPercent += Number(m[1]); continue; }
+    m = effect.match(/chance to get a critical strike with spells by (\d+(?:\.\d+)?)%/i);
+    if (m) { stats.spellCritPercent += Number(m[1]); continue; }
+
+    // Hit: "Improves your chance to hit by 2.0%." (works for everyone)
     m = effect.match(/chance to hit by (\d+(?:\.\d+)?)%/i);
     if (m) { stats.hitPercent += Number(m[1]); continue; }
 
-    // Crit: "Improves your chance to get a critical strike by 1.0%." (not "...with spells")
+    // Crit: "Improves your chance to get a critical strike by 1.0%." (works for everyone)
     m = effect.match(/chance to get a critical strike by (\d+(?:\.\d+)?)%/i);
     if (m) { stats.critPercent += Number(m[1]); continue; }
 
@@ -244,7 +258,7 @@ function parseStats(lines) {
   if (stats.weapon) stats.weapon = { ...stats.weapon, slot, type };
 
   // Avoid tiny rounding errors like 1.5000000002 when adding percentages.
-  for (const k of ["hitPercent", "critPercent", "hastePercent", "expertisePercent"]) stats[k] = Math.round(stats[k] * 100) / 100;
+  for (const k of ["hitPercent", "critPercent", "spellHitPercent", "spellCritPercent", "hastePercent", "expertisePercent"]) stats[k] = Math.round(stats[k] * 100) / 100;
   return stats;
 }
 

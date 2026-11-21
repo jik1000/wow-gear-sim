@@ -113,6 +113,12 @@ async function main() {
   const pauldrons = await find("Pauldrons of Elements", 16669);
   check("Pauldrons of Elements: Spell Penetration 2", pauldrons?.stats.spellPenetration === 2);
 
+  // Spell-only crit, and the "spell damage and healing by up to" wording.
+  const eye = await find("Eye of the Beast", (await request("tools/call", { name: "search_item", arguments: { name: "Eye of the Beast", limit: 1 } })).result?.structuredContent?.items?.[0]?.id);
+  check("Eye of the Beast: Spell Crit 1% (not general crit)", eye?.stats.spellCritPercent === 1 && eye?.stats.critPercent === 0);
+  const seal = (await request("tools/call", { name: "search_item", arguments: { name: "Royal Seal of Eldre'Thalas", limit: 1 } })).result?.structuredContent?.items?.[0];
+  check("Royal Seal of Eldre'Thalas: Spell Damage 18 + Healing 18", seal?.stats.spellDamage === 18 && seal?.stats.healing === 18);
+
   // 7. Asking again should come from the cache (much faster).
   const t0 = Date.now();
   await request("tools/call", { name: "search_item", arguments: { name: "Wolfshead Helm", limit: 1 } });

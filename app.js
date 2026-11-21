@@ -155,7 +155,7 @@ function refreshItems() {
 // Which item stat (from the server) goes in which row of the compare table.
 const ITEM_STAT = {
   "Strength": "strength", "Agility": "agility", "Intellect": "intellect",
-  "Hit %": "hitPercent", "Crit %": "critPercent", "Haste %": "hastePercent",
+  "Haste %": "hastePercent", // Hit % and Crit % depend on the spec (see hitFor / critFor)
   "Expertise %": "expertisePercent", "Spell Penetration": "spellPenetration",
   "Stamina": "stamina", "Spirit": "spirit", "Armor": "armor",
 };
@@ -170,6 +170,11 @@ function attackPowerFor(item) {
   const feral = $("class-select").value === "Druid" && $("spec-select").value === "Feral";
   return item.stats.attackPower + (feral ? item.stats.feralAttackPower : 0);
 }
+
+// Hit and crit: "...with spells" versions only help casters.
+const isCaster = () => spec().kind === "caster";
+const hitFor = (item) => item.stats.hitPercent + (isCaster() ? item.stats.spellHitPercent || 0 : 0);
+const critFor = (item) => item.stats.critPercent + (isCaster() ? item.stats.spellCritPercent || 0 : 0);
 
 // Spell damage for all schools, plus the best single-school bonus this spec can use.
 // Example: "+34 Fire and +34 Shadow" counts 34 for a Destruction Warlock (not 68),
@@ -240,6 +245,8 @@ function fillColumn(side) {
       value = items.reduce((sum, item) =>
         sum + (stat === "Attack Power" ? attackPowerFor(item)
              : stat === "Spell Damage" ? spellDamageFor(item)
+             : stat === "Hit %" ? hitFor(item)
+             : stat === "Crit %" ? critFor(item)
              : item.stats[ITEM_STAT[stat]]), 0);
     }
     $(side + i).value = Math.round(value * 100) / 100;
@@ -285,7 +292,8 @@ function summary(s) {
     // One entry per school, e.g. "+34 Fire Dmg"
     ...Object.entries(s.schoolSpellDamage || {}).map(([name, v]) => [v, name[0].toUpperCase() + name.slice(1) + " Dmg"]),
     [s.healing, "Healing"], [s.spellPenetration, "Spell Pen"],
-    [s.hitPercent, "% Hit"], [s.critPercent, "% Crit"], [s.hastePercent, "% Haste"],
+    [s.hitPercent, "% Hit"], [s.critPercent, "% Crit"],
+    [s.spellHitPercent, "% Spell Hit"], [s.spellCritPercent, "% Spell Crit"], [s.hastePercent, "% Haste"],
     [s.expertisePercent, "% Expertise"], [s.armor, "Armor"],
   ].filter(([v]) => v).map(([v, label]) => `${label.startsWith("%") ? v : "+" + v} ${label}`);
   if (s.weapon?.dps) parts.push(`${s.weapon.dps} DPS`);
