@@ -31,8 +31,10 @@ const PHYS = (strAP, agiAP, agiPerCrit, weapon = true) =>
 const CASTER = (intPerCrit) => ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false });
 
 const SPECS = {
-  // Feral: Cat and Bear form ignore the weapon's damage, so weapon = false.
-  Druid:   { Feral: PHYS(2, 1, 20, false), Balance: CASTER(57) },
+  // Feral: unlike Classic, WoW Forever's Cat and Bear form DO use the weapon's DPS
+  // (swing speed is fixed by the form, so only the weapon's DPS matters).
+  // Source: https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority
+  Druid:   { Feral: PHYS(2, 1, 20), Balance: CASTER(57) },
   Hunter:  { "Beast Mastery": PHYS(0, 2, 53), Marksmanship: PHYS(0, 2, 53), Survival: PHYS(0, 2, 53) },
   Mage:    { Arcane: CASTER(57), Fire: CASTER(57), Frost: CASTER(57) },
   Paladin: { Retribution: PHYS(2, 0, 20) },
@@ -239,8 +241,7 @@ function update() {
                       .filter(Boolean).join(" + ") || "no effect for this spec",
     "Intellect":    s.intPerCrit ? `1% spell crit per ${s.intPerCrit}` : "no damage effect",
     "Attack Power": s.kind === "physical" ? "14 AP = 1 DPS" : "not used by casters",
-    "Weapon DPS":   s.weapon ? "+1 weapon DPS = +1 DPS (like 14 AP)"
-                  : s.kind === "caster" ? "not used by casters" : "Cat/Bear form ignores weapon damage",
+    "Weapon DPS":   s.weapon ? "+1 weapon DPS = +1 DPS (like 14 AP)" : "not used by casters",
     "Stamina":      "no DPS (shown for info)",
     "Spirit":       "no DPS (shown for info)",
     "Armor":        "no DPS (shown for info)",
