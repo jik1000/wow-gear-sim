@@ -85,7 +85,23 @@ async function main() {
     reaper?.stats.weapon?.min === 153 && reaper?.stats.weapon?.max === 256 &&
     reaper?.stats.weapon?.speed === 3.8 && reaper?.stats.attackPower === 62);
 
-  // 6. Asking again should come from the cache (much faster).
+  // 6. Stat wordings that were missed before (found by scanning 220 items).
+  async function find(name, id) {
+    const res = await request("tools/call", { name: "search_item", arguments: { name } });
+    return res.result?.structuredContent?.items?.find((it) => it.id === id);
+  }
+  const cosmos = await find("Cloak of the Cosmos", 18389);
+  check("Cloak of the Cosmos: new wording gives Healing 20 + Spell Damage 7",
+    cosmos?.stats.healing === 20 && cosmos?.stats.spellDamage === 7);
+  const soranruk = await find("Staff of Soran'ruk", 15109);
+  check("Staff of Soran'ruk: Shadow 34 and Fire 34 school damage",
+    soranruk?.stats.schoolSpellDamage.shadow === 34 && soranruk?.stats.schoolSpellDamage.fire === 34);
+  const dagger = await find("Distracting Dagger", 18392);
+  check("Distracting Dagger: Expertise 0.5%", dagger?.stats.expertisePercent === 0.5);
+  const pauldrons = await find("Pauldrons of Elements", 16669);
+  check("Pauldrons of Elements: Spell Penetration 2", pauldrons?.stats.spellPenetration === 2);
+
+  // 7. Asking again should come from the cache (much faster).
   const t0 = Date.now();
   await request("tools/call", { name: "search_item", arguments: { name: "Wolfshead Helm", limit: 1 } });
   console.log(`(second Wolfshead lookup took ${Date.now() - t0} ms; only the search is re-fetched)`);

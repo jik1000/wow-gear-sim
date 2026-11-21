@@ -119,11 +119,14 @@ function parseStats(lines) {
     armor: 0,
     attackPower: 0,
     feralAttackPower: 0,
-    spellDamage: 0,
+    spellDamage: 0,        // damage for ALL spell schools
+    schoolSpellDamage: { arcane: 0, fire: 0, frost: 0, holy: 0, nature: 0, shadow: 0 }, // one school only
     healing: 0,
     hitPercent: 0,
     critPercent: 0,
     hastePercent: 0,
+    expertisePercent: 0,   // "Reduces chance to be Dodged or Parried by N%"
+    spellPenetration: 0,   // "Your spells pierce N Magical Resistance"
     defense: 0,
     weapon: null, // filled in only for weapons
   };
@@ -182,6 +185,17 @@ function parseStats(lines) {
     m = effect.match(/damage and healing done by magical spells and effects by up to (\d+)/i);
     if (m) { stats.spellDamage += Number(m[1]); stats.healing += Number(m[1]); continue; }
 
+    // New WoW Forever wording with two different numbers:
+    // "Increases healing done by up to 20 and damage done by up to 7 for all magical spells and effects."
+    m = effect.match(/healing done by up to (\d+) and damage done by up to (\d+) for all magical spells/i);
+    if (m) { stats.healing += Number(m[1]); stats.spellDamage += Number(m[2]); continue; }
+    m = effect.match(/damage done by up to (\d+) and healing done by up to (\d+) for all magical spells/i);
+    if (m) { stats.spellDamage += Number(m[1]); stats.healing += Number(m[2]); continue; }
+
+    // One spell school only: "Increases damage done by Fire spells and effects by up to 34."
+    m = effect.match(/^Increases damage done by (Arcane|Fire|Frost|Holy|Nature|Shadow) spells and effects by up to (\d+)/i);
+    if (m) { stats.schoolSpellDamage[m[1].toLowerCase()] += Number(m[2]); continue; }
+
     // Healing only: "Increases healing done by spells and effects by up to 44."
     m = effect.match(/healing done by spells and effects by up to (\d+)/i);
     if (m) { stats.healing += Number(m[1]); continue; }
@@ -202,13 +216,23 @@ function parseStats(lines) {
     m = effect.match(/(?:attack speed|haste) by (\d+(?:\.\d+)?)%/i);
     if (m) { stats.hastePercent += Number(m[1]); continue; }
 
+    // Expertise: "Reduces chance to be Dodged or Parried by 0.5%."
+    m = effect.match(/chance to be Dodged or Parried by (\d+(?:\.\d+)?)%/i);
+    if (m) { stats.expertisePercent += Number(m[1]); continue; }
+
+    // Spell penetration: "Your spells pierce 2 Magical Resistance."
+    // (Classic wording: "Decreases the magical resistances of your spell targets by 10.")
+    m = effect.match(/spells pierce (\d+) (?:Magical )?Resistance/i) ||
+        effect.match(/magical resistances of your spell targets by (\d+)/i);
+    if (m) { stats.spellPenetration += Number(m[1]); continue; }
+
     // Defense: "Increased Defense +10."
     m = effect.match(/Defense \+(\d+)/i);
     if (m) { stats.defense += Number(m[1]); continue; }
   }
 
   // Avoid tiny rounding errors like 1.5000000002 when adding percentages.
-  for (const k of ["hitPercent", "critPercent", "hastePercent"]) stats[k] = Math.round(stats[k] * 100) / 100;
+  for (const k of ["hitPercent", "critPercent", "hastePercent", "expertisePercent"]) stats[k] = Math.round(stats[k] * 100) / 100;
   return stats;
 }
 

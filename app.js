@@ -28,20 +28,24 @@
 const PHYS = (strAP, agiAP, agiPerCrit, weapon = true) =>
   ({ kind: "physical", strAP, agiAP, agiPerCrit, intPerCrit: 0, weapon });
 // Only Paladin (54) and Warlock (60) are named in the source; 57 is a middle guess for the others.
-const CASTER = (intPerCrit) => ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false });
+//   schools:    the spell schools a caster spec mostly casts. Items with
+//               "damage done by Fire spells" only count for specs that cast Fire.
+const CASTER = (intPerCrit, schools) =>
+  ({ kind: "caster", strAP: 0, agiAP: 0, agiPerCrit: 0, intPerCrit, weapon: false, schools });
 
 const SPECS = {
   // Feral: unlike Classic, WoW Forever's Cat and Bear form DO use the weapon's DPS
   // (swing speed is fixed by the form, so only the weapon's DPS matters).
   // Source: https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority
-  Druid:   { Feral: PHYS(2, 1, 20), Balance: CASTER(57) },
+  Druid:   { Feral: PHYS(2, 1, 20), Balance: CASTER(57, ["arcane", "nature"]) },
   Hunter:  { "Beast Mastery": PHYS(0, 2, 53), Marksmanship: PHYS(0, 2, 53), Survival: PHYS(0, 2, 53) },
-  Mage:    { Arcane: CASTER(57), Fire: CASTER(57), Frost: CASTER(57) },
+  Mage:    { Arcane: CASTER(57, ["arcane"]), Fire: CASTER(57, ["fire"]), Frost: CASTER(57, ["frost"]) },
   Paladin: { Retribution: PHYS(2, 0, 20) },
-  Priest:  { Shadow: CASTER(57) },
+  Priest:  { Shadow: CASTER(57, ["shadow"]) },
   Rogue:   { Assassination: PHYS(1, 1, 29), Combat: PHYS(1, 1, 29), Subtlety: PHYS(1, 1, 29) },
-  Shaman:  { Elemental: CASTER(57), Enhancement: PHYS(2, 0, 20) },
-  Warlock: { Affliction: CASTER(60), Demonology: CASTER(60), Destruction: CASTER(60) },
+  Shaman:  { Elemental: CASTER(57, ["nature", "fire"]), Enhancement: PHYS(2, 0, 20) },
+  Warlock: { Affliction: CASTER(60, ["shadow"]), Demonology: CASTER(60, ["shadow"]),
+             Destruction: CASTER(60, ["shadow", "fire"]) },
   Warrior: { Arms: PHYS(2, 0, 20), Fury: PHYS(2, 0, 20) },
 };
 
@@ -62,7 +66,7 @@ const BASE = {
 // Stamina, Spirit and Armor don't add damage (weight 0), but they are shown
 // so you can see every stat an item has after picking it in the search.
 const STATS = ["Strength", "Agility", "Intellect", "Attack Power", "Spell Damage", "Hit %", "Crit %", "Haste %",
-               "Weapon DPS", "Stamina", "Spirit", "Armor"];
+               "Weapon DPS", "Expertise %", "Spell Penetration", "Stamina", "Spirit", "Armor"];
 
 const $ = (id) => document.getElementById(id);
 const num = (id) => Number($(id).value) || 0; // empty box counts as 0
@@ -97,8 +101,13 @@ function loadBaseWeights() {
   $("b-spell").value = b.spell;
   // The character-sheet DPS box only matters for physical specs.
   $("sheet-row").hidden = spec().kind !== "physical";
-  // Feral Attack Power only counts for Feral, so refill the AP box of picked items.
-  for (const side of ["old", "new"]) if (picked[side]) $(side + STATS.indexOf("Attack Power")).value = attackPowerFor(picked[side]);
+  // Feral Attack Power and school spell damage depend on the spec, so refill
+  // those two boxes for items picked in the search.
+  for (const side of ["old", "new"]) {
+    if (!picked[side]) continue;
+    $(side + STATS.indexOf("Attack Power")).value = attackPowerFor(picked[side]);
+    $(side + STATS.indexOf("Spell Damage")).value = spellDamageFor(picked[side]);
+  }
   update();
 }
 
@@ -111,7 +120,8 @@ function loadBaseWeights() {
 // Which item stat (from the server) goes in which row of the compare table.
 const ITEM_STAT = {
   "Strength": "strength", "Agility": "agility", "Intellect": "intellect",
-  "Spell Damage": "spellDamage", "Hit %": "hitPercent", "Crit %": "critPercent", "Haste %": "hastePercent",
+  "Hit %": "hitPercent", "Crit %": "critPercent", "Haste %": "hastePercent",
+  "Expertise %": "expertisePercent", "Spell Penetration": "spellPenetration",
   "Stamina": "stamina", "Spirit": "spirit", "Armor": "armor",
 };
 
@@ -124,12 +134,22 @@ function attackPowerFor(item) {
   return item.stats.attackPower + (feral ? item.stats.feralAttackPower : 0);
 }
 
+// Spell damage for all schools, plus the best single-school bonus this spec can use.
+// Example: "+34 Fire and +34 Shadow" counts 34 for a Destruction Warlock (not 68),
+// because each spell is only one school.
+function spellDamageFor(item) {
+  const schools = spec().schools || [];
+  const school = item.stats.schoolSpellDamage || {};
+  return item.stats.spellDamage + Math.max(0, ...schools.map((name) => school[name] || 0));
+}
+
 // Put an item's stats into one column of the compare table.
 function fillColumn(side, item) {
   picked[side] = item;
   STATS.forEach((stat, i) => {
     $(side + i).value =
       stat === "Attack Power" ? attackPowerFor(item)
+      : stat === "Spell Damage" ? spellDamageFor(item)
       : stat === "Weapon DPS" ? item.stats.weapon?.dps ?? 0 // 0 for items that aren't weapons
       : item.stats[ITEM_STAT[stat]];
   });
@@ -141,7 +161,11 @@ function summary(s) {
   const parts = [
     [s.strength, "Str"], [s.agility, "Agi"], [s.stamina, "Sta"], [s.intellect, "Int"], [s.spirit, "Spi"],
     [s.attackPower, "AP"], [s.feralAttackPower, "Feral AP"], [s.spellDamage, "Spell Dmg"],
-    [s.hitPercent, "% Hit"], [s.critPercent, "% Crit"], [s.hastePercent, "% Haste"], [s.armor, "Armor"],
+    // One entry per school, e.g. "+34 Fire Dmg"
+    ...Object.entries(s.schoolSpellDamage || {}).map(([name, v]) => [v, name[0].toUpperCase() + name.slice(1) + " Dmg"]),
+    [s.healing, "Healing"], [s.spellPenetration, "Spell Pen"],
+    [s.hitPercent, "% Hit"], [s.critPercent, "% Crit"], [s.hastePercent, "% Haste"],
+    [s.expertisePercent, "% Expertise"], [s.armor, "Armor"],
   ].filter(([v]) => v).map(([v, label]) => `${label.startsWith("%") ? v : "+" + v} ${label}`);
   if (s.weapon?.dps) parts.push(`${s.weapon.dps} DPS`);
   return parts.join(", ") || "no stats";
@@ -231,6 +255,8 @@ function update() {
     "Hit %": hit, "Crit %": crit, "Haste %": haste,
     // Weapon DPS: +1 weapon DPS adds 1 DPS, the same as 14 Attack Power.
     "Weapon DPS":   s.weapon ? 14 * ap : 0,
+    // Read from items, but not counted yet: they need cap rules (planned next).
+    "Expertise %": 0, "Spell Penetration": 0,
     "Stamina": 0, "Spirit": 0, "Armor": 0, // survival stats: no DPS
   };
 
@@ -242,6 +268,8 @@ function update() {
     "Intellect":    s.intPerCrit ? `1% spell crit per ${s.intPerCrit}` : "no damage effect",
     "Attack Power": s.kind === "physical" ? "14 AP = 1 DPS" : "not used by casters",
     "Weapon DPS":   s.weapon ? "+1 weapon DPS = +1 DPS (like 14 AP)" : "not used by casters",
+    "Expertise %":  "shown, not in the estimate yet",
+    "Spell Penetration": "shown, not in the estimate yet",
     "Stamina":      "no DPS (shown for info)",
     "Spirit":       "no DPS (shown for info)",
     "Armor":        "no DPS (shown for info)",

@@ -24,7 +24,8 @@ const TOOLS = [
       "Use this instead of web search for any WoW Forever item stats. " +
       "Returns up to 5 matching items with name, id, quality, Wowhead link, the full tooltip as text lines, " +
       "and parsed stats (Strength, Agility, Stamina, Intellect, Spirit, Armor, Attack Power, Feral Attack Power, " +
-      "Spell Damage, Healing, Hit %, Crit %, Haste %, Defense, weapon damage/speed/DPS). Set bonuses are not counted in stats.",
+      "Spell Damage (all schools, plus per-school Fire/Frost/Shadow/etc.), Healing, Hit %, Crit %, Haste %, Expertise %, " +
+      "Spell Penetration, Defense, weapon damage/speed/DPS). Set bonuses are not counted in stats.",
     inputSchema: {
       type: "object",
       properties: {
