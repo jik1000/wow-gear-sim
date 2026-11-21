@@ -1,0 +1,4 @@
+# Files that should NOT be uploaded to GitHub.
+node_modules/
+.claude/
+*.log
