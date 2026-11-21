@@ -5,7 +5,7 @@ services:
     name: wow-gear-sim
     runtime: node
     plan: free
-        rootDir: wow-gear-sim
+    rootDir: wow-gear-sim       # on GitHub, the files are inside a "wow-gear-sim" folder
     buildCommand: npm install   # nothing to install (no packages), but Render expects a build step
     startCommand: npm start     # runs: node wow-items-mcp/web.js
     healthCheckPath: /
