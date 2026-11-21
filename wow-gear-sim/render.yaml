@@ -1,0 +1,10 @@
+# render.yaml: settings Render reads when you create the site as a "Blueprint".
+# It runs the same web server you use on your PC (wow-items-mcp/web.js).
+services:
+  - type: web
+    name: wow-gear-sim
+    runtime: node
+    plan: free
+    buildCommand: npm install   # nothing to install (no packages), but Render expects a build step
+    startCommand: npm start     # runs: node wow-items-mcp/web.js
+    healthCheckPath: /

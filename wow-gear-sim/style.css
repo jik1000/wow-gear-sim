@@ -1,0 +1,75 @@
+/* style.css: the LOOK of the page (colors, spacing, fonts). */
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #1b1d23;   /* dark background */
+  color: #e8e6e3;        /* light text */
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h1 { color: #f4c542; }   /* gold title */
+
+.note { color: #a0a4ad; font-size: 0.9em; }
+
+section {
+  background: #262932;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 4px; text-align: left; }
+
+input, select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #14161a;
+  color: inherit;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+/* The result box turns green for an upgrade, red for a downgrade */
+#result { font-size: 1.3em; font-weight: bold; }
+.upgrade   { color: #5fd068; }
+.downgrade { color: #ef5b5b; }
+
+/* Put each label on its own line with a little space */
+label { display: block; margin-bottom: 8px; }
+
+/* Item search boxes: two side by side, stacked on narrow phones */
+.search-row { display: flex; gap: 12px; margin-bottom: 8px; }
+.item-search { flex: 1; min-width: 0; }
+@media (max-width: 480px) { .search-row { flex-direction: column; } }
+
+.results { list-style: none; margin: 0; padding: 0; }
+.results button {
+  width: 100%;
+  text-align: left;
+  background: #14161a;
+  color: inherit;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+.results button:hover { border-color: #f4c542; }
+.results .note { display: block; font-size: 0.8em; }
+.picked a { color: #f4c542; }
+
+/* WoW item quality colors */
+.q-Poor { color: #9d9d9d; }
+.q-Common { color: #ffffff; }
+.q-Uncommon { color: #1eff00; }
+.q-Rare { color: #0070dd; }
+.q-Epic { color: #a335ee; }
+.q-Legendary { color: #ff8000; }
+
+/* Make sure hidden things stay hidden */
+[hidden] { display: none; }

@@ -1,0 +1,13 @@
+{
+  "name": "wow-gear-sim",
+  "version": "1.0.0",
+  "description": "Gear DPS Simulator for WoW Forever, with item search from Wowhead.",
+  "private": true,
+  "scripts": {
+    "start": "node wow-items-mcp/web.js",
+    "test": "node wow-items-mcp/test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
