@@ -131,6 +131,10 @@ function parseStats(lines) {
     weapon: null, // filled in only for weapons
   };
 
+  // Weapon slot ("Main Hand", "Off Hand", "Ranged"...) and type ("Sword", "Bow"...).
+  // They sit on their own lines just above the damage line.
+  let slot = null, type = null;
+
   for (const line of lines) {
     // Recipes ("Pattern: ...", "Plans: ...") show the crafted item's tooltip
     // after this line. Those stats belong to the crafted item, so stop here.
@@ -151,7 +155,13 @@ function parseStats(lines) {
     }
 
     // --- Weapon lines ---
-    m = line.match(/^(\d+) - (\d+) Damage$/);
+    if (/^(One-Hand|Two-Hand|Main Hand|Off Hand|Ranged|Thrown)$/.test(line)) { slot = line; continue; }
+    if (slot && !type && /^(Axe|Bow|Crossbow|Dagger|Fist Weapon|Gun|Mace|Polearm|Staff|Sword|Wand|Thrown|Fishing Pole)$/.test(line)) {
+      type = line;
+      continue;
+    }
+    // "153 - 256 Damage", or for wands "30 - 57 Shadow Damage"
+    m = line.match(/^(\d+) - (\d+)(?: [A-Z][a-z]+)? Damage$/);
     if (m && !stats.weapon?.min) {
       stats.weapon = { ...stats.weapon, min: Number(m[1]), max: Number(m[2]) };
       continue;
@@ -230,6 +240,8 @@ function parseStats(lines) {
     m = effect.match(/Defense \+(\d+)/i);
     if (m) { stats.defense += Number(m[1]); continue; }
   }
+
+  if (stats.weapon) stats.weapon = { ...stats.weapon, slot, type };
 
   // Avoid tiny rounding errors like 1.5000000002 when adding percentages.
   for (const k of ["hitPercent", "critPercent", "hastePercent", "expertisePercent"]) stats[k] = Math.round(stats[k] * 100) / 100;

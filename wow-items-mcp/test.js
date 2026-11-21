@@ -81,9 +81,21 @@ async function main() {
   // 5. A weapon: damage, speed and DPS.
   const reaper = (await request("tools/call", { name: "search_item", arguments: { name: "Arcanite Reaper", limit: 1 } }))
     .result?.structuredContent?.items?.[0];
-  check("Arcanite Reaper: 153-256 dmg, speed 3.8, AP 62",
+  check("Arcanite Reaper: 153-256 dmg, speed 3.8, AP 62, Two-Hand Axe",
     reaper?.stats.weapon?.min === 153 && reaper?.stats.weapon?.max === 256 &&
-    reaper?.stats.weapon?.speed === 3.8 && reaper?.stats.attackPower === 62);
+    reaper?.stats.weapon?.speed === 3.8 && reaper?.stats.attackPower === 62 &&
+    reaper?.stats.weapon?.slot === "Two-Hand" && reaper?.stats.weapon?.type === "Axe");
+
+  // Weapon slots: off hand, ranged, and a wand with "Shadow Damage".
+  const weaponOf = async (name) =>
+    (await request("tools/call", { name: "search_item", arguments: { name, limit: 1 } }))
+      .result?.structuredContent?.items?.[0]?.stats.weapon;
+  const offHand = await weaponOf("Dal'Rend's Tribal Guardian");
+  check("Dal'Rend's Tribal Guardian: Off Hand Sword", offHand?.slot === "Off Hand" && offHand?.type === "Sword");
+  const bow = await weaponOf("Satyr's Bow");
+  check("Satyr's Bow: Ranged Bow, 29.79 DPS", bow?.slot === "Ranged" && bow?.type === "Bow" && bow?.dps === 29.79);
+  const wand = await weaponOf("Gravestone Scepter");
+  check("Gravestone Scepter: Ranged Wand, 30-57 damage", wand?.type === "Wand" && wand?.min === 30 && wand?.max === 57);
 
   // 6. Stat wordings that were missed before (found by scanning 220 items).
   async function find(name, id) {

@@ -66,12 +66,20 @@
           <input type="search" placeholder="e.g. Wolfshead Helm" autocomplete="off"></label>
         <ul class="results"></ul>
         <p class="picked note"></p>
+        <!-- Only shown for one-handed weapons when you dual wield -->
+        <label class="hand" hidden>This weapon goes in my
+          <select><option value="main">main hand</option><option value="off">off hand (half DPS)</option></select></label>
+        <p class="weapon-note note"></p>
       </form>
       <form class="item-search" id="search-new">
         <label>Find new item
           <input type="search" placeholder="e.g. Golem War Cloak" autocomplete="off"></label>
         <ul class="results"></ul>
         <p class="picked note"></p>
+        <!-- Only shown for one-handed weapons when you dual wield -->
+        <label class="hand" hidden>This weapon goes in my
+          <select><option value="main">main hand</option><option value="off">off hand (half DPS)</option></select></label>
+        <p class="weapon-note note"></p>
       </form>
     </div>
     <table id="compare">

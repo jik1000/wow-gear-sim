@@ -134,14 +134,20 @@ function loadBaseWeights() {
   const dwKey = $("class-select").value + "/" + $("spec-select").value;
   $("dw-row").hidden = !(dwKey in DUAL_WIELD_SPECS);
   $("dual-wield").checked = DUAL_WIELD_SPECS[dwKey] === true;
-  // Feral Attack Power and school spell damage depend on the spec, so refill
-  // those two boxes for items picked in the search.
-  for (const side of ["old", "new"]) {
-    if (!picked[side]) continue;
-    $(side + STATS.indexOf("Attack Power")).value = attackPowerFor(picked[side]);
-    $(side + STATS.indexOf("Spell Damage")).value = spellDamageFor(picked[side]);
-  }
+  refillSpecDependent();
   update();
+}
+
+// Some boxes depend on your spec or weapon setup, not just the item: Feral AP,
+// school spell damage and weapon DPS. Refill them for items picked in the search.
+function refillSpecDependent() {
+  for (const side of ["old", "new"]) {
+    const item = picked[side];
+    if (!item) continue;
+    $(side + STATS.indexOf("Attack Power")).value = attackPowerFor(item);
+    $(side + STATS.indexOf("Spell Damage")).value = spellDamageFor(item);
+    $(side + STATS.indexOf("Weapon DPS")).value = weaponDpsFor(item, side);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +182,47 @@ function spellDamageFor(item) {
   return item.stats.spellDamage + Math.max(0, ...schools.map((name) => school[name] || 0));
 }
 
+// Weapon DPS that actually counts for your spec:
+//   - Hunters: only ranged weapons (bow, gun, crossbow). Their melee weapon barely matters.
+//   - Everyone else: melee weapons only (a bow or wand on a Warrior doesn't count).
+//   - Off-hand weapons hit for half damage, so they count at half DPS.
+const OFF_HAND_SHARE = 0.5;
+const isDualWielding = () => !$("dw-row").hidden && $("dual-wield").checked;
+
+function weaponDpsFor(item, side) {
+  const form = $("search-" + side);
+  const handLabel = form.querySelector(".hand");
+  const note = form.querySelector(".weapon-note");
+  const w = item.stats.weapon;
+  handLabel.hidden = true;
+  note.textContent = "";
+  if (!w?.dps) return 0;
+
+  const ranged = w.slot === "Ranged" || w.slot === "Thrown";
+  if ($("class-select").value === "Hunter") {
+    if (!ranged) note.textContent = "Melee weapon: Hunters' damage comes from their ranged weapon, so its DPS isn't counted.";
+    return ranged ? w.dps : 0;
+  }
+  if (ranged) {
+    note.textContent = "Ranged weapon: only Hunters get damage from this, so its DPS isn't counted.";
+    return 0;
+  }
+
+  // Which hand? Off Hand weapons always go in the off hand. One-Hand weapons
+  // can go in either, so when you dual wield, you choose with the dropdown.
+  let hand = "main";
+  if (w.slot === "Off Hand") hand = "off";
+  if (w.slot === "One-Hand" && isDualWielding()) {
+    handLabel.hidden = false;
+    hand = handLabel.querySelector("select").value;
+  }
+  if (hand === "off") {
+    note.textContent = `Off hand: counts half of its ${w.dps} DPS.`;
+    return Math.round(w.dps * OFF_HAND_SHARE * 100) / 100;
+  }
+  return w.dps;
+}
+
 // Put an item's stats into one column of the compare table.
 function fillColumn(side, item) {
   picked[side] = item;
@@ -183,7 +230,7 @@ function fillColumn(side, item) {
     $(side + i).value =
       stat === "Attack Power" ? attackPowerFor(item)
       : stat === "Spell Damage" ? spellDamageFor(item)
-      : stat === "Weapon DPS" ? item.stats.weapon?.dps ?? 0 // 0 for items that aren't weapons
+      : stat === "Weapon DPS" ? weaponDpsFor(item, side) // 0 for items that aren't weapons
       : item.stats[ITEM_STAT[stat]];
   });
   update();
@@ -368,6 +415,11 @@ $("class-select").addEventListener("change", fillSpecs);
 $("spec-select").addEventListener("change", loadBaseWeights);
 // Re-calculate on every keystroke in a box (dropdowns are handled above).
 document.addEventListener("input", (e) => { if (e.target.tagName === "INPUT") update(); });
-$("dual-wield").addEventListener("change", update); // the checkbox
+// The dual-wield checkbox and the main/off hand choice change which weapon DPS counts.
+$("dual-wield").addEventListener("change", () => { refillSpecDependent(); update(); });
+for (const side of ["old", "new"]) {
+  $("search-" + side).querySelector(".hand select")
+    .addEventListener("change", () => { refillSpecDependent(); update(); });
+}
 
 fillSpecs(); // start up the page
