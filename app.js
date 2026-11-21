@@ -525,6 +525,10 @@ function update() {
   // instead of "you'd lose your whole item".
   const newEmpty = STATS.every((_, i) => !num("new" + i));
   if (newEmpty) {
+    document.querySelectorAll("#compare .effect").forEach((cell) => {
+      cell.textContent = "—";
+      cell.className = "num effect";
+    });
     value.textContent = "—";
     value.className = "result-value";
     $("result-note").textContent = "Search for a new item to compare.";

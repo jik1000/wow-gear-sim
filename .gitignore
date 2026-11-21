@@ -2,3 +2,5 @@
 node_modules/
 .claude/
 *.log
+# Zipped copies of the addon for sharing (the source is in addon/)
+*.zip

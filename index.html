@@ -16,20 +16,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gear DPS Simulator</title>
-  <!-- Fonts: Cinzel for headings (classic fantasy serif), Inter for everything else -->
+  <!-- Fonts: Marcellus for headings (a flared serif in the spirit of WoW's interface
+       font), Source Sans 3 for everything else -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="site-header">
-    <p class="eyebrow">WoW Forever · Upgrade Estimator</p>
-    <h1>Gear DPS Simulator</h1>
-    <div class="divider" aria-hidden="true"><span></span></div>
+    <h1>Gear DPS Simulator <span class="tag">WoW Forever</span></h1>
     <p class="lead">
-      Compare two items and see how much DPS you gain or lose. Strength, Agility, Intellect and
-      Attack Power use each class's real stat conversions; the rest are starting estimates you can tune.
+      See how much DPS an item gains or loses you. Import your character from the game,
+      pick a slot, and search for what you'd wear instead.
     </p>
   </header>
 
@@ -37,7 +36,7 @@
     <!-- ===================== LEFT: character and settings ===================== -->
     <aside class="sidebar">
       <section class="card character-card">
-        <h2><span class="class-dot" aria-hidden="true"></span>Your Character</h2>
+        <h2><span class="class-dot" aria-hidden="true"></span>Your character</h2>
         <div class="field-grid two">
           <label class="field"><span>Class</span><select id="class-select"></select></label>
           <label class="field"><span>Spec</span><select id="spec-select"></select></label>
@@ -67,7 +66,7 @@
 
       <!-- Paste the line from the GearSim Export addon (/gearsim in game) -->
       <section class="card import-card">
-        <h2>Import from Game</h2>
+        <h2>Import from the game</h2>
         <label class="field"><span>Paste from /gearsim</span>
           <textarea id="import-text" rows="3" spellcheck="false" placeholder="GS1|DRUID|43|…"></textarea></label>
         <button type="button" id="import-button" class="primary">Import character</button>
@@ -77,7 +76,7 @@
 
       <!-- Advanced settings fold away; open them to tune the estimates -->
       <details class="card fold">
-        <summary><h2>Advanced Tuning</h2><span class="fold-hint">Weights &amp; caps</span></summary>
+        <summary><h2>Advanced settings</h2><span class="fold-hint">Weights &amp; caps</span></summary>
         <div class="fold-body">
           <!-- Crit's weight is calculated from this and "Crit %" above -->
           <label class="field"><span>Crit damage bonus %</span>
@@ -110,7 +109,7 @@
       </section>
 
       <section class="card">
-        <h2>Compare Items</h2>
+        <h2>Compare items</h2>
         <!-- Search Wowhead (WoW Forever) for an item, click a result, and its
              stats fill that column below. You can still type stats by hand.
              Each column has one search box, or two (main hand + off hand) when you
@@ -183,7 +182,7 @@
 
       <!-- The full weights table folds away too -->
       <details class="card fold">
-        <summary><h2>Stat Weights</h2><span class="fold-hint">How every number is calculated</span></summary>
+        <summary><h2>Stat weights</h2><span class="fold-hint">How every number is calculated</span></summary>
         <div class="fold-body table-wrap">
           <!-- app.js fills this table and explains each number -->
           <table id="weights"></table>
