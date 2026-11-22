@@ -125,6 +125,16 @@ STATS.forEach((stat, i) => {
          <td><input id="old${i}" type="number" step="any" value="0"></td>
          <td><input id="new${i}" type="number" step="any" value="0"></td>
          <td class="num effect" id="eff${i}"></td></tr>`;
+  // Right after Weapon DPS: an extra row, only shown when one side dual wields and
+  // the other doesn't (a two-hander against two one-handers). Two weapons miss
+  // more often, and this row shows what that costs or saves.
+  if (stat === "Weapon DPS") {
+    document.querySelector("#compare tbody").innerHTML +=
+      `<tr id="setup-row" hidden>
+         <td title="Auto attacks with two weapons miss more: they need ${DUAL_WIELD_HIT_CAP}% hit instead of the normal cap">Dual-wield misses</td>
+         <td id="setup-old"></td><td id="setup-new"></td>
+         <td class="num effect" id="setup-eff"></td></tr>`;
+  }
 });
 
 // Class colors (the colors WoW players know each class by), used as the page's accent.
@@ -160,7 +170,8 @@ function loadBaseWeights() {
   // Show the dual-wield checkbox only for specs that can dual wield.
   const dwKey = $("class-select").value + "/" + $("spec-select").value;
   $("dw-row").hidden = !(dwKey in DUAL_WIELD_SPECS);
-  $("dual-wield").checked = DUAL_WIELD_SPECS[dwKey] === true;
+  // After an import we know: tick it only if there's a weapon in your off hand.
+  $("dual-wield").checked = imported ? importedDualWields() : DUAL_WIELD_SPECS[dwKey] === true;
   applyImportedStats(); // after an import, use the real crit/hit/DPS from the game
   refreshItems();
 }
@@ -218,12 +229,40 @@ function spellDamageFor(item) {
 //   - Everyone else: melee weapons only (a bow or wand on a Warrior doesn't count).
 //   - Off-hand weapons hit for half damage, so they count at half DPS.
 const OFF_HAND_SHARE = 0.5;
-const isDualWielding = () => !$("dw-row").hidden && $("dual-wield").checked;
+const canDualWield = () => !$("dw-row").hidden;
+// The "I dual wield" checkbox: your current setup.
+const isDualWielding = () => canDualWield() && $("dual-wield").checked;
+
+const weaponSlot = (item) => item?.stats.weapon?.slot;
+const isMeleeWeapon = (item) => !!weaponSlot(item) && !["Ranged", "Thrown"].includes(weaponSlot(item));
+
+// Does this column get an off-hand box? Yes if you dual wield, but also as soon as
+// a one-handed weapon is picked in it, so a two-hander user can try a pair.
+function offHandShown(side) {
+  if (!canDualWield()) return false;
+  return isDualWielding() || !!picked[side].off || ["One-Hand", "Main Hand"].includes(weaponSlot(picked[side].main));
+}
+
+// Does this column hold a dual-wield pair? Decided by the weapons in it:
+//   one-hander (or main hand) + a one-hander or off-hand weapon = dual wield
+//   a two-hander, or one weapon alone = not
+// When no weapons are being compared (say, two helmets), your current setup counts.
+function dualWields(side) {
+  if (!canDualWield()) return false;
+  const main = picked[side].main;
+  const off = offHandShown(side) ? picked[side].off : null;
+  if (!isMeleeWeapon(main) && !isMeleeWeapon(off)) return isDualWielding();
+  return weaponSlot(main) !== "Two-Hand" && ["One-Hand", "Off Hand"].includes(weaponSlot(off));
+}
+
+// After an import: is there a weapon in your off hand?
+const importedDualWields = () => ["One-Hand", "Off Hand"].includes(weaponSlot(imported?.gear[17]));
 
 // How much of an item's weapon DPS counts, and a note explaining why.
 //   hand: "main" or "off" (which search box the item is in)
 //   twoHanderInMain: true if the main hand already holds a two-handed weapon
-function weaponDpsFor(item, hand, twoHanderInMain) {
+//   offShown: true if this column has an off-hand box
+function weaponDpsFor(item, hand, twoHanderInMain, offShown) {
   const w = item.stats.weapon;
   if (!w?.dps) return { dps: 0, note: "" };
 
@@ -236,7 +275,7 @@ function weaponDpsFor(item, hand, twoHanderInMain) {
 
   if (hand === "main") {
     if (w.slot === "Off Hand") return { dps: 0, note: "This weapon only fits in the off hand, so it isn't counted here." };
-    if (w.slot === "Two-Hand" && isDualWielding())
+    if (w.slot === "Two-Hand" && offShown)
       return { dps: w.dps, note: "Two-handed: leave the off hand empty to compare it with a dual-wield pair." };
     return { dps: w.dps, note: "" };
   }
@@ -249,16 +288,17 @@ function weaponDpsFor(item, hand, twoHanderInMain) {
 }
 
 // Fill one column of the compare table from its picked item(s).
-// With dual wield on, the main-hand and off-hand weapons are added together.
+// With an off-hand box, the main-hand and off-hand weapons are added together.
 function fillColumn(side) {
+  const offShown = offHandShown(side);
   const main = picked[side].main;
-  const off = isDualWielding() ? picked[side].off : null;
+  const off = offShown ? picked[side].off : null;
   if (!main && !off) return; // nothing picked: keep whatever was typed by hand
 
   const twoHanderInMain = main?.stats.weapon?.slot === "Two-Hand";
   const weapons = {};
   for (const [hand, item] of [["main", main], ["off", off]]) {
-    weapons[hand] = item ? weaponDpsFor(item, hand, twoHanderInMain) : { dps: 0, note: "" };
+    weapons[hand] = item ? weaponDpsFor(item, hand, twoHanderInMain, offShown) : { dps: 0, note: "" };
     picker(side, hand).querySelector(".weapon-note").textContent = weapons[hand].note;
   }
 
@@ -281,15 +321,15 @@ function fillColumn(side) {
   });
 }
 
-// When dual wield is on, show the off-hand boxes and the swap/copy buttons,
+// In a column with an off-hand box, show it and the swap/copy buttons,
 // and rename the first box to "main hand".
 const SLOT_LABELS = {
   old: { single: "Find equipped item", main: "Equipped main hand" },
   new: { single: "Find new item", main: "New main hand" },
 };
 function applyDualWieldLayout() {
-  const dw = isDualWielding();
   for (const side of ["old", "new"]) {
+    const dw = offHandShown(side);
     picker(side, "off").hidden = !dw;
     picker(side, "main").closest(".item-search").querySelector(".dw-tools").hidden = !dw;
     picker(side, "main").querySelector(".slot-label").textContent = dw ? SLOT_LABELS[side].main : SLOT_LABELS[side].single;
@@ -372,8 +412,7 @@ async function search(side, slot) {
         picked[side][slot] = item;
         list.innerHTML = "";
         showPicked(side, slot); // "Using: <item>" with a Wowhead link
-        fillColumn(side);
-        update();
+        refreshItems(); // a one-hander may add an off-hand box, so redo the layout too
       });
       const li = document.createElement("li");
       li.append(button);
@@ -433,11 +472,16 @@ function update() {
   // --- Hit and Expertise with caps ---
   // "Useful hit" for a given hit %: full value up to the cap, then (dual wield only)
   // half value up to 27%, then nothing.
+  // With two weapons, auto attacks (about half your damage) also miss more: everything
+  // between the normal cap and 27% is extra misses. That's the "- extra" part, which
+  // only matters when one column dual wields and the other doesn't.
   const physical = s.kind === "physical";
   const hitCap = num("hit-cap"), curHit = num("cur-hit");
-  const dualWield = !$("dw-row").hidden && $("dual-wield").checked;
-  const usefulHit = (h) => clamp(h, 0, hitCap) +
-    (dualWield ? DUAL_WIELD_AUTO_SHARE * clamp(h - hitCap, 0, DUAL_WIELD_HIT_CAP - hitCap) : 0);
+  const dwOld = dualWields("old"), dwNew = dualWields("new");
+  const dualWield = dwOld; // your current setup
+  const extra = Math.max(0, DUAL_WIELD_HIT_CAP - hitCap);
+  const usefulHit = (h, dw) => clamp(h, 0, hitCap) +
+    (dw ? DUAL_WIELD_AUTO_SHARE * (clamp(h - hitCap, 0, extra) - extra) : 0);
   // Expertise: full value until the boss's dodge chance is gone. Casters don't use it.
   const expCap = physical ? num("exp-cap") : 0, curExp = num("cur-exp");
   const usefulExp = (e) => clamp(e, 0, expCap);
@@ -493,11 +537,15 @@ function update() {
   // Hit and Expertise are different: swapping items moves you along the cap, so we
   // compare your useful hit before and after the swap. Your current hit already
   // includes the equipped item, so it's at least that item's hit.
+  // Hit is counted with the New column's weapon setup; the change of setup itself
+  // (one weapon <-> two) gets its own "Dual-wield misses" row below.
   const capped = {
-    "Hit %":       { useful: usefulHit, now: curHit, weight: hit },
+    "Hit %":       { useful: (h) => usefulHit(h, dwNew), now: curHit, weight: hit },
     "Expertise %": { useful: usefulExp, now: curExp, weight: expWeight },
   };
-  let percent = 0;
+  const hitBefore = Math.max(curHit, num("old" + STATS.indexOf("Hit %")));
+  const setupChange = (usefulHit(hitBefore, dwNew) - usefulHit(hitBefore, dwOld)) * hit;
+  let percent = setupChange;
   STATS.forEach((stat, i) => {
     const oldValue = num("old" + i), newValue = num("new" + i);
     const c = capped[stat];
@@ -520,11 +568,21 @@ function update() {
     cell.closest("tr").classList.toggle("empty", !oldValue && !newValue);
   });
 
+  // The "Dual-wield misses" row: only when the two columns use different setups.
+  const setupLabel = (dw) => (dw ? "Dual wield" : "One weapon");
+  $("setup-row").hidden = dwOld === dwNew;
+  $("setup-old").textContent = setupLabel(dwOld);
+  $("setup-new").textContent = setupLabel(dwNew);
+  const setupRounded = Math.round(setupChange * 100) / 100;
+  $("setup-eff").textContent = setupRounded ? formatPercent(setupRounded) : "—";
+  $("setup-eff").className = "num effect" + (setupRounded > 0 ? " up" : setupRounded < 0 ? " down" : "");
+
   const value = $("result-value");
   // Nothing on the New side yet? Then there's nothing to compare: show a dash
   // instead of "you'd lose your whole item".
   const newEmpty = STATS.every((_, i) => !num("new" + i));
   if (newEmpty) {
+    $("setup-row").hidden = true;
     document.querySelectorAll("#compare .effect").forEach((cell) => {
       cell.textContent = "—";
       cell.className = "num effect";
@@ -641,12 +699,7 @@ async function importCharacter() {
     // Switch to the imported class (this also fills crit/hit/DPS via applyImportedStats).
     $("class-select").value = data.className;
     $("class-select").dispatchEvent(new Event("change"));
-    // Tick "I dual wield" if there's a weapon in the off hand.
-    const offHand = gear[17]?.stats?.weapon;
-    if (offHand && !$("dw-row").hidden && ["One-Hand", "Off Hand"].includes(offHand.slot)) {
-      $("dual-wield").checked = true;
-      refreshItems();
-    }
+    // ("I dual wield" was set from your off hand by loadBaseWeights.)
     enterGearMode();
     const missing = Object.values(gear).filter((it) => it.missingId).length;
     status.textContent = `Imported a level ${data.level} ${data.className} with ${data.slots.length} items` +
